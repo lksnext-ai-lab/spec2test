@@ -1,0 +1,63 @@
+name: Gherkin-Generator
+
+services:
+  crawler:
+    container_name: web-crawler
+    build:
+      context: ./web-crawler
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./web-crawler/src:/app/src
+      - ./auth_actions.json:/app/auth_actions.json
+    environment:
+      - PYTHONUNBUFFERED=1
+    networks:
+      - tfm-eneko-network
+
+  filesystem-mcp:
+    container_name: filesystem-mcp
+    build:
+      context: ./filesystem-mcp
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "8002:8000"
+    volumes:
+      - ${INPUTS_DIR}:/app/inputs
+      - ${INPUTS_CACHE_DIR}:/app/inputs/.cache
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: ["node", "/app/dist/index.js", "8000", "/app/inputs", "/app/inputs/.cache"]
+    networks:
+      - tfm-eneko-network
+      
+  input-processor:
+    container_name: input_processor
+    build:
+      context: ./input-processor
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "8003:8000"
+    volumes:
+      - ./input-processor/src:/app/src
+      - ${INPUTS_DIR}:/app/inputs
+      - ${INPUTS_CACHE_DIR}:/app/inputs/.cache
+    environment:
+      - PYTHONUNBUFFERED=1
+      - HF_HOME=/root/.cache/huggingface
+      - HF_HUB_ENABLE_HF_TRANSFER=1
+      - HF_TOKEN=${HF_TOKEN:-}
+    command: python /app/src/main.py
+    networks:
+      - tfm-eneko-network
+
+networks:
+  tfm-eneko-network:
+    driver: bridge

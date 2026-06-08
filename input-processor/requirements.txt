@@ -1,0 +1,11 @@
+langchain
+langchain-openai
+langchain-anthropic
+langchain-google-genai
+PyPDF2
+uvicorn
+fastmcp
+opencv-python-headless
+numpy
+pymupdf
+pymupdf4llm

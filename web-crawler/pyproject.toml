@@ -1,0 +1,12 @@
+[project]
+name = "tfm-crawler"
+version = "0.1.0"
+description = "Web crawler for the TFM of Eneko P."
+readme = "README.md"
+requires-python = ">=3.11"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+uvicorn = "^0.20.0"
+mcp = {extras = ["cli"], version = "^1.9.1"}
+crawl4ai = "^0.6.3"
