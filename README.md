@@ -8,6 +8,7 @@ This repository contains a small stack of MCP (Model Context Protocol) services 
 - **input-processor**: MCP server that analyzes MP4, PDF, Markdown, and text files, then caches structured summaries for test generation.
 - **web-crawler**: MCP server that crawls a site to extract links, UI elements, and page content in markdown.
 - **filesystem-mcp**: MCP server that exposes safe, sandboxed file operations within allowed directories only.
+- `.claude/skills/gherkin-multiple-v5/` — The Claude Skill that computes all maintainability metrics and produces the Excel workbooks and JSON state files to help assess the maintainability quality of the generated Gherkin. The paper regarding the measurement is waiting to be published. The metric descriptions are in the document .claude/skills/gherkin-multiple-v5/Feature Maintainability Metrics.md.
 
 ## Quick start (Docker)
 

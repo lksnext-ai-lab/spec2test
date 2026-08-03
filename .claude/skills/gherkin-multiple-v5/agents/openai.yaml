@@ -1,0 +1,12 @@
+interface:
+  display_name: Gherkin multiple v5
+  short_description: analyze gherkin specifications with feature and suite maintainability metrics, repeated-step reporting, background design diagnostics, scenario-outline coverage, excel export, mandatory json state output, incremental consolidation across upload batches, and zip-as-single-feature aggregation, and asking for the excel output filename before analysis when it is not provided.
+  icon_small: assets/icon.svg
+  icon_large: assets/icon.svg
+policy:
+  products:
+  - chatgpt
+  - codex
+  - api
+  - atlas
+  allow_implicit_invocation: true
