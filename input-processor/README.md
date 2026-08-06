@@ -1,6 +1,6 @@
 # Input Processor Module
 
-A specialized component of the TFM-LLM2e system that processes and analyzes input files for automated test scenario generation. This module serves as an MCP (Model Context Protocol) server that can handle video recordings of browser sessions plus PDF, Markdown, and plain text documentation, extracting valuable information for test automation.
+A specialized component of the Spec2Test system that processes and analyzes input files for automated test scenario generation. This module serves as an MCP (Model Context Protocol) server that can handle video recordings of browser sessions plus PDF, Markdown, and plain text documentation, extracting valuable information for test automation.
 
 ## Features
 
@@ -57,26 +57,29 @@ Plain text files are read directly without preprocessing and summarized with the
 The module exposes three MCP tools:
 
 ### `process_files`
-Processes all supported files in the configured input directory (`/app/inputs/`).
+Processes all supported files in the input directory.
 
 **Parameters:**
-- The input and cache directories are currently fixed by the MCP server at
-   `/app/inputs/` and `/app/inputs/.cache/`.
+- `input_dir` (str, optional): Directory containing input files (default: "/app/inputs/")
+- `cache_dir` (str, optional): Directory for caching results (default: "/app/inputs/.cache/")
 
 **Returns:**
 - Detailed analysis results for all processed files, formatted for test scenario generation
 
 **Example:**
 ```python
-# Process all files in the directory mounted as /app/inputs
+# Process all files in default directory
 result = await process_files()
+
+# Process files in custom directory
+result = await process_files(input_dir="/path/to/inputs", cache_dir="/path/to/cache")
 ```
 
 ### `list_processed_files`
 Lists all processed files with metadata.
 
 **Parameters:**
-- No parameters. The cache directory is `/app/inputs/.cache/`.
+- `cache_dir` (str, optional): Directory containing cached files (default: "/app/inputs/.cache/")
 
 **Returns:**
 - CSV-formatted list with original filename, format, file size, and unique hash identifier
@@ -252,6 +255,7 @@ input-processor/
 ├── src/
 │   ├── main.py              # MCP server implementation
 │   ├── file_processor.py    # Core processing logic
+│   └── __pycache__/         # Python cache files
 ├── Dockerfile               # Container configuration
 ├── requirements.txt         # Python dependencies
 └── README.md               # This documentation
@@ -331,7 +335,7 @@ The module includes comprehensive error handling:
 
 ## Integration Points
 
-This module integrates with other TFM-LLM2e components:
+This module integrates with other Spec2Test components:
 
 1. **Gherkin Generator**: Consumes processed analysis for feature file generation
 2. **Step Definition Generator**: Uses UI analysis for test automation code
@@ -349,4 +353,6 @@ When extending this module:
 
 ## License
 
-This module is part of the TFM-LLM2e project and follows the same licensing terms.
+This module is part of the Spec2Test project and is licensed under the PolyForm
+Noncommercial License 1.0.0. See the repository [LICENSE](../LICENSE) for the
+applicable terms.

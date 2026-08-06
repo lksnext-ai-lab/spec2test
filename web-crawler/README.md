@@ -1,6 +1,6 @@
-# TFM-Eneko Web Crawler
+# Spec2Test Web Crawler
 
-A sophisticated web crawler built with Python that extracts structured data from web pages and exposes it through an MCP (Model Context Protocol) server. This tool is designed for TFM (Final Master's Project) research purposes.
+A sophisticated web crawler built with Python that extracts structured data from web pages and exposes it through an MCP (Model Context Protocol) server. This tool is designed for research and test automation purposes.
 
 ## Features
 
@@ -15,7 +15,7 @@ A sophisticated web crawler built with Python that extracts structured data from
 
 The crawler performs the following operations on target websites:
 
-1. **Link Extraction**: Identifies links in crawled pages and follows only same-host links
+1. **Link Extraction**: Identifies all internal and external links with their URLs
 2. **Interactive Elements**: Finds buttons and input fields with their types and XPath selectors
 3. **Content Processing**: Converts page content to clean markdown format
 4. **Multi-page Crawling**: Can crawl multiple pages up to specified depth and page limits
@@ -45,7 +45,7 @@ For each crawled page, the tool generates:
    {
        "mcp": {
            "servers": {
-               "tfm-crawler": {
+               "spec2Test-Crawler": {
                   "url": "http://127.0.0.1:8000/mcp"
                }
            }
@@ -57,7 +57,7 @@ For each crawled page, the tool generates:
 
 1. **Prepare the environment**:
    ```bash
-   cd tfm-crawler
+   cd web-crawler
    rm -rf .venv
    uv venv
    uv sync --no-dev
@@ -137,11 +137,24 @@ Most PoC web applications require login. Instead of manually extracting cookies 
 
 > **Tip**: Re-run `capture_auth.py` whenever tokens expire. You can maintain multiple files for different apps (`prestashop_auth.json`, `joomla_auth.json`, etc.).
 
-The crawler replays the recorded actions in order. It does not load a Playwright
-`storage_state` file; use the action recording format produced by `capture_auth.py`.
+#### Legacy: Manual Cookie Configuration
 
-The current crawler implementation does not read the legacy cookie, storage-injection, or
-Chrome DevTools Recorder variables shown in older versions of this documentation.
+You can still pass cookies manually via environment variable:
+
+```env
+CRAWLER_COOKIES=[{"session_id": "abc123"}, {"csrf_token": "xyz"}]
+```
+
+#### Legacy: Storage Injection
+
+```env
+CRAWLER_LOCAL_STORAGE=[{"token": "Bearer eyJ..."}]
+CRAWLER_SESSION_STORAGE=[{"user": "{\"id\":1}"}]
+```
+
+#### Legacy: Login Recording Replay
+
+Set `CRAWLER_LOGIN_RECORDING_FILE` to a Chrome DevTools Recorder JSON export.
 
 ### Crawling Parameters
 
@@ -164,7 +177,7 @@ The MCP server listens on port `8000` and provides:
 ## Project Structure
 
 ```
-tfm-crawler/
+web-crawler/
 ├── src/
 │   ├── main.py              # MCP server entry point
 │   └── crawler/
@@ -190,6 +203,16 @@ The crawler provides intelligent error handling for common issues:
 - Keep the service bound to a trusted local or private network. The MCP endpoint has no
    application-level authentication configured by default.
 
-## License
+## Support
 
-This project is part of a Final Master's Project (TFM) by Eneko P.
+For installation questions or issues encountered, please contact `bperez@lksnext.com`
+or `eneko.pizarro@ehu.eus`.
+
+# LICENSE:
+This project is licensed under the PolyForm Noncommercial License 1.0.0.
+
+You may use, study, modify, and share this software for non-commercial purposes,
+including personal, educational, research, and evaluation use.
+
+Commercial use is not permitted without prior written permission from the copyright holder.
+For commercial licensing, please contact LKS Next at `qacontact@lksnext.com`.

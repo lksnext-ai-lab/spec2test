@@ -70,11 +70,17 @@ docker-compose.yaml    # Core services
 docker-compose.gpu.yaml # GPU override
 ```
 
+## Support
+
+For installation questions or issues encountered, please contact `bperez@lksnext.com`
+or `eneko.pizarro@ehu.eus`.
+
 # LICENSE:
-This project is licensed under the PolyForm Noncommercial License 1.0.0.
+The code developed for this project is licensed under the PolyForm Noncommercial
+License 1.0.0. The `filesystem-mcp` component remains separately licensed under the MIT License.
 
 You may use, study, modify, and share this software for non-commercial purposes,
 including personal, educational, research, and evaluation use.
 
 Commercial use is not permitted without prior written permission from the copyright holder.
-For commercial licensing, please contact: `bperez@lksnext.com` or `eneko.pizarro@ehu.eus`.
+For commercial licensing, please contact LKS Next at `qacontact@lksnext.com`.

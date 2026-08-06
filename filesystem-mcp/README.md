@@ -209,25 +209,10 @@ Note: all directories must be mounted to `/projects` by default.
 Docker build:
 
 ```bash
-docker build -t spec2test-filesystem ./filesystem-mcp
-npm run build
+docker build -t mcp/filesystem -f src/filesystem/Dockerfile .
 ```
-
-Run the server locally after building:
-
-```bash
-node dist/index.js 8000 /path/to/allowed/directory
-```
-
-For VS Code or another MCP client using the Compose stack, configure the HTTP endpoint
-`http://localhost:8002/mcp` instead of the command-based examples above.
-
-## Security considerations
-
-Only pass directories that the MCP client is allowed to read and modify. The server is
-designed for trusted local or private-network use and has no user authentication layer.
-Do not mount credential stores or broad system directories as allowed paths.
 
 ## License
 
-This MCP server is licensed under the MIT License. This means you are free to use, modify, and distribute the software, subject to the terms and conditions of the MIT License. For more details, please see the LICENSE file in the project repository.
+This MCP server is based on the filesystem server from Anthropic and is licensed
+under the MIT License.

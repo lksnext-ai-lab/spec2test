@@ -4,7 +4,7 @@ import asyncio
 from mcp.server.fastmcp import FastMCP
 from crawler.web_crawler import web_crawler
 
-mcp = FastMCP("TFM-Crawler", stateless_http=True, json_response=True)
+mcp = FastMCP("spec2Test-Crawler", stateless_http=True, json_response=True)
 
 @mcp.tool()
 async def web_crawl(

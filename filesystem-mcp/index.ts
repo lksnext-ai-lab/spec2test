@@ -25,8 +25,8 @@ if (args.length < 2) { // Need at least port and one allowed directory
 
 const port = parseInt(args[0], 10);
 if (isNaN(port) || port <= 0 || port > 65535) {
-    console.error("Error: Invalid port number provided.");
-    process.exit(1);
+  console.error("Error: Invalid port number provided.");
+  process.exit(1);
 }
 
 // The rest of the arguments are allowed directories
@@ -253,7 +253,7 @@ function createUnifiedDiff(originalContent: string, newContent: string, filepath
 
 async function applyFileEdits(
   filePath: string,
-  edits: Array<{oldText: string, newText: string}>,
+  edits: Array<{ oldText: string, newText: string }>,
   dryRun = false
 ): Promise<string> {
   // Read file content and normalize line endings
@@ -386,15 +386,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "finding specific files within a directory. Only works within allowed directories.",
         inputSchema: zodToJsonSchema(ListDirectoryArgsSchema) as ToolInput,
       },
-        {
-            name: "directory_tree",
-            description:
-                "Get a recursive tree view of files and directories as a JSON structure. " +
-                "Each entry includes 'name', 'type' (file/directory), and 'children' for directories. " +
-                "Files have no children array, while directories always have a children array (which may be empty). " +
-                "The output is formatted with 2-space indentation for readability. Only works within allowed directories.",
-            inputSchema: zodToJsonSchema(DirectoryTreeArgsSchema) as ToolInput,
-        },
+      {
+        name: "directory_tree",
+        description:
+          "Get a recursive tree view of files and directories as a JSON structure. " +
+          "Each entry includes 'name', 'type' (file/directory), and 'children' for directories. " +
+          "Files have no children array, while directories always have a children array (which may be empty). " +
+          "The output is formatted with 2-space indentation for readability. Only works within allowed directories.",
+        inputSchema: zodToJsonSchema(DirectoryTreeArgsSchema) as ToolInput,
+      },
       {
         name: "move_file",
         description:
@@ -529,48 +529,48 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-        case "directory_tree": {
-            const parsed = DirectoryTreeArgsSchema.safeParse(args);
-            if (!parsed.success) {
-                throw new Error(`Invalid arguments for directory_tree: ${parsed.error}`);
-            }
-
-            interface TreeEntry {
-                name: string;
-                type: 'file' | 'directory';
-                children?: TreeEntry[];
-            }
-
-            async function buildTree(currentPath: string): Promise<TreeEntry[]> {
-                const validPath = await validatePath(currentPath);
-                const entries = await fs.readdir(validPath, {withFileTypes: true});
-                const result: TreeEntry[] = [];
-
-                for (const entry of entries) {
-                    const entryData: TreeEntry = {
-                        name: entry.name,
-                        type: entry.isDirectory() ? 'directory' : 'file'
-                    };
-
-                    if (entry.isDirectory()) {
-                        const subPath = path.join(currentPath, entry.name);
-                        entryData.children = await buildTree(subPath);
-                    }
-
-                    result.push(entryData);
-                }
-
-                return result;
-            }
-
-            const treeData = await buildTree(parsed.data.path);
-            return {
-                content: [{
-                    type: "text",
-                    text: JSON.stringify(treeData, null, 2)
-                }],
-            };
+      case "directory_tree": {
+        const parsed = DirectoryTreeArgsSchema.safeParse(args);
+        if (!parsed.success) {
+          throw new Error(`Invalid arguments for directory_tree: ${parsed.error}`);
         }
+
+        interface TreeEntry {
+          name: string;
+          type: 'file' | 'directory';
+          children?: TreeEntry[];
+        }
+
+        async function buildTree(currentPath: string): Promise<TreeEntry[]> {
+          const validPath = await validatePath(currentPath);
+          const entries = await fs.readdir(validPath, { withFileTypes: true });
+          const result: TreeEntry[] = [];
+
+          for (const entry of entries) {
+            const entryData: TreeEntry = {
+              name: entry.name,
+              type: entry.isDirectory() ? 'directory' : 'file'
+            };
+
+            if (entry.isDirectory()) {
+              const subPath = path.join(currentPath, entry.name);
+              entryData.children = await buildTree(subPath);
+            }
+
+            result.push(entryData);
+          }
+
+          return result;
+        }
+
+        const treeData = await buildTree(parsed.data.path);
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify(treeData, null, 2)
+          }],
+        };
+      }
 
       case "move_file": {
         const parsed = MoveFileArgsSchema.safeParse(args);
@@ -605,9 +605,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const validPath = await validatePath(parsed.data.path);
         const info = await getFileStats(validPath);
         return {
-          content: [{ type: "text", text: Object.entries(info)
-            .map(([key, value]) => `${key}: ${value}`)
-            .join("\n") }],
+          content: [{
+            type: "text", text: Object.entries(info)
+              .map(([key, value]) => `${key}: ${value}`)
+              .join("\n")
+          }],
         };
       }
 
@@ -636,8 +638,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function runServer() {
   // Create Streamable HTTP transport - stateless for simplicity
   const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined, // Disable session management for stateless operation
-      // enableJsonResponse: true // Optional: set to true to always return JSON responses
+    sessionIdGenerator: undefined, // Disable session management for stateless operation
+    // enableJsonResponse: true // Optional: set to true to always return JSON responses
   });
 
   await server.connect(transport);
@@ -664,11 +666,11 @@ async function runServer() {
             try { // Inner try for transport.handleRequest
               await transport.handleRequest(req, res, parsedBody); // Pass parsed body to handleRequest
             } catch (handleError) { // Catches errors from transport.handleRequest
-               console.error("Error handling POST request:", handleError);
-               if (!res.headersSent) {
-                 res.writeHead(500, { 'Content-Type': 'text/plain' });
-                 res.end('Internal Server Error');
-               }
+              console.error("Error handling POST request:", handleError);
+              if (!res.headersSent) {
+                res.writeHead(500, { 'Content-Type': 'text/plain' });
+                res.end('Internal Server Error');
+              }
             }
           } catch (parseError) { // Catches errors from JSON.parse
             console.error("Error parsing request body:", parseError);
@@ -678,13 +680,13 @@ async function runServer() {
             }
           }
         });
-         req.on('error', (err) => {
-            console.error("Error reading request stream:", err);
-            if (!res.headersSent) {
-              res.writeHead(500, { 'Content-Type': 'text/plain' });
-              res.end('Internal Server Error');
-            }
-         });
+        req.on('error', (err) => {
+          console.error("Error reading request stream:", err);
+          if (!res.headersSent) {
+            res.writeHead(500, { 'Content-Type': 'text/plain' });
+            res.end('Internal Server Error');
+          }
+        });
       } else if (req.method === 'GET') {
         // Handle GET requests, typically for SSE streams
         await transport.handleRequest(req, res);
@@ -711,22 +713,22 @@ async function runServer() {
 
 // Main execution function to handle async operations at the top level
 async function main() {
-    // Validate that all directories exist and are accessible
-    await Promise.all(directoryArgs.map(async (dir) => {
-      try {
-        const stats = await fs.stat(expandHome(dir));
-        if (!stats.isDirectory()) {
-          console.error(`Error: ${dir} is not a directory`);
-          process.exit(1);
-        }
-      } catch (error) {
-        console.error(`Error accessing directory ${dir}:`, error);
+  // Validate that all directories exist and are accessible
+  await Promise.all(directoryArgs.map(async (dir) => {
+    try {
+      const stats = await fs.stat(expandHome(dir));
+      if (!stats.isDirectory()) {
+        console.error(`Error: ${dir} is not a directory`);
         process.exit(1);
       }
-    }));
+    } catch (error) {
+      console.error(`Error accessing directory ${dir}:`, error);
+      process.exit(1);
+    }
+  }));
 
-    // Start the HTTP server
-    await runServer();
+  // Start the HTTP server
+  await runServer();
 }
 
 // Execute the main function and catch any fatal errors
