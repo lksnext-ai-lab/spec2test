@@ -15,7 +15,7 @@ A sophisticated web crawler built with Python that extracts structured data from
 
 The crawler performs the following operations on target websites:
 
-1. **Link Extraction**: Identifies all internal and external links with their URLs
+1. **Link Extraction**: Identifies links in crawled pages and follows only same-host links
 2. **Interactive Elements**: Finds buttons and input fields with their types and XPath selectors
 3. **Content Processing**: Converts page content to clean markdown format
 4. **Multi-page Crawling**: Can crawl multiple pages up to specified depth and page limits
@@ -46,7 +46,7 @@ For each crawled page, the tool generates:
        "mcp": {
            "servers": {
                "tfm-crawler": {
-                   "url": "http://127.0.0.1:8000/mcp/"
+                  "url": "http://127.0.0.1:8000/mcp"
                }
            }
        }
@@ -88,7 +88,7 @@ import asyncio
 # Crawl a website with custom parameters
 result = await web_crawler(
     url="https://example.com",
-    use_DFS=False,  # Use BFS strategy
+   use_DFS=False,  # Use BFS strategy (internal Python function name)
     max_depth=3,
     max_pages=100
 )
@@ -108,7 +108,7 @@ print(result)
 
 ### Authentication for Protected Sites
 
-Most PoC web applications require login. Instead of manually extracting cookies and tokens, use the **interactive capture tool** to log in once and save the full auth state.
+Most PoC web applications require login. Instead of manually extracting cookies and tokens, use the **interactive capture tool** to log in once and save a replayable action recording.
 
 #### Quick Auth Setup (Recommended)
 
@@ -125,47 +125,39 @@ Most PoC web applications require login. Instead of manually extracting cookies 
 
 3. **Log in normally** in the browser that opens, then press **Enter** in the terminal.
 
-4. The tool saves `auth_state.json` containing all cookies, localStorage, and sessionStorage.
+4. The tool saves `auth_actions.json` containing the recorded navigation and browser actions.
+   Do not commit this file: it can contain credentials, tokens, or other private values.
 
 5. **Set the env var** in your `.env`:
    ```env
-   CRAWLER_AUTH_STATE_FILE=auth_state.json
+   CRAWLER_AUTH_ACTIONS_FILE=auth_actions.json
    ```
 
 6. Rebuild/restart the crawler — it will use the captured state automatically.
 
 > **Tip**: Re-run `capture_auth.py` whenever tokens expire. You can maintain multiple files for different apps (`prestashop_auth.json`, `joomla_auth.json`, etc.).
 
-#### Legacy: Manual Cookie Configuration
+The crawler replays the recorded actions in order. It does not load a Playwright
+`storage_state` file; use the action recording format produced by `capture_auth.py`.
 
-You can still pass cookies manually via environment variable:
-
-```env
-CRAWLER_COOKIES=[{"session_id": "abc123"}, {"csrf_token": "xyz"}]
-```
-
-#### Legacy: Storage Injection
-
-```env
-CRAWLER_LOCAL_STORAGE=[{"token": "Bearer eyJ..."}]
-CRAWLER_SESSION_STORAGE=[{"user": "{\"id\":1}"}]
-```
-
-#### Legacy: Login Recording Replay
-
-Set `CRAWLER_LOGIN_RECORDING_FILE` to a Chrome DevTools Recorder JSON export.
+The current crawler implementation does not read the legacy cookie, storage-injection, or
+Chrome DevTools Recorder variables shown in older versions of this documentation.
 
 ### Crawling Parameters
 
 - `url`: Target website URL
-- `use_DFS`: Boolean flag for crawling strategy (True for DFS, False for BFS)
+- `use_dfs`: Boolean flag for crawling strategy (True for DFS, False for BFS)
 - `max_depth`: Maximum crawling depth
 - `max_pages`: Maximum number of pages to crawl
+- `use_auth`: Whether to replay the configured authentication actions (default: `true`)
+
+The MCP tool defaults to BFS, depth `2`, and at most `50` pages. Links are followed only
+when they belong to the same host as the starting URL.
 
 ### Server Configuration
 
-The MCP server runs on port 8000 and provides:
-- HTTP endpoint at `http://localhost:8000/mcp/`
+The MCP server listens on port `8000` and provides:
+- HTTP endpoint at `http://localhost:8000/mcp`
 - Stateless operation with JSON responses
 - Tool registration for web crawling functionality
 
@@ -190,6 +182,13 @@ The crawler provides intelligent error handling for common issues:
 - HTML parsing errors with graceful fallback
 - Network timeout handling
 - Invalid URL detection
+
+## Security considerations
+
+- Treat authentication recordings, cookies, and local storage values as secrets.
+- Only crawl applications and environments for which you have authorization.
+- Keep the service bound to a trusted local or private network. The MCP endpoint has no
+   application-level authentication configured by default.
 
 ## License
 

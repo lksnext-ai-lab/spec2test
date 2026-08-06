@@ -10,7 +10,10 @@ Node.js server implementing Model Context Protocol (MCP) for filesystem operatio
 - Search files
 - Get file metadata
 
-**Note**: The server will only allow operations within directories specified via `args`.
+The server accepts the port followed by one or more allowed directories as command-line
+arguments. Every filesystem operation is restricted to those directories. In the root
+Compose setup the service listens on container port `8000`, is published as host port
+`8002`, and allows `/app/inputs` and `/app/inputs/.cache`.
 
 ## API
 
@@ -206,8 +209,24 @@ Note: all directories must be mounted to `/projects` by default.
 Docker build:
 
 ```bash
-docker build -t mcp/filesystem -f src/filesystem/Dockerfile .
+docker build -t spec2test-filesystem ./filesystem-mcp
+npm run build
 ```
+
+Run the server locally after building:
+
+```bash
+node dist/index.js 8000 /path/to/allowed/directory
+```
+
+For VS Code or another MCP client using the Compose stack, configure the HTTP endpoint
+`http://localhost:8002/mcp` instead of the command-based examples above.
+
+## Security considerations
+
+Only pass directories that the MCP client is allowed to read and modify. The server is
+designed for trusted local or private-network use and has no user authentication layer.
+Do not mount credential stores or broad system directories as allowed paths.
 
 ## License
 

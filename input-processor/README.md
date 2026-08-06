@@ -57,29 +57,26 @@ Plain text files are read directly without preprocessing and summarized with the
 The module exposes three MCP tools:
 
 ### `process_files`
-Processes all supported files in the input directory.
+Processes all supported files in the configured input directory (`/app/inputs/`).
 
 **Parameters:**
-- `input_dir` (str, optional): Directory containing input files (default: "/app/inputs/")
-- `cache_dir` (str, optional): Directory for caching results (default: "/app/inputs/.cache/")
+- The input and cache directories are currently fixed by the MCP server at
+   `/app/inputs/` and `/app/inputs/.cache/`.
 
 **Returns:**
 - Detailed analysis results for all processed files, formatted for test scenario generation
 
 **Example:**
 ```python
-# Process all files in default directory
+# Process all files in the directory mounted as /app/inputs
 result = await process_files()
-
-# Process files in custom directory
-result = await process_files(input_dir="/path/to/inputs", cache_dir="/path/to/cache")
 ```
 
 ### `list_processed_files`
 Lists all processed files with metadata.
 
 **Parameters:**
-- `cache_dir` (str, optional): Directory containing cached files (default: "/app/inputs/.cache/")
+- No parameters. The cache directory is `/app/inputs/.cache/`.
 
 **Returns:**
 - CSV-formatted list with original filename, format, file size, and unique hash identifier
@@ -104,6 +101,11 @@ Retrieves detailed analysis results for a specific file.
 # Get content for a specific file
 content = await get_processed_content(file_hash="abc123def456...")
 ```
+
+### `get_all_processed_content`
+
+Returns the complete cached content for every processed file as a JSON array. This is
+useful when a downstream generator needs to combine several documents and recordings.
 
 ## Core Classes
 
@@ -185,8 +187,11 @@ docker build -t input-processor .
 
 Run the container:
 ```bash
-docker run -d -p 8001:8001 -v /path/to/inputs:/app/inputs input-processor
+docker run -d -p 8003:8000 -v /path/to/inputs:/app/inputs input-processor
 ```
+
+The container listens on port `8000`; `8003` is only the example host port. With the
+root Compose file, use `http://localhost:8003/mcp`.
 
 ### Direct Usage
 
@@ -247,7 +252,6 @@ input-processor/
 ├── src/
 │   ├── main.py              # MCP server implementation
 │   ├── file_processor.py    # Core processing logic
-│   └── __pycache__/         # Python cache files
 ├── Dockerfile               # Container configuration
 ├── requirements.txt         # Python dependencies
 └── README.md               # This documentation
