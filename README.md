@@ -12,11 +12,13 @@ This repository contains a small stack of MCP (Model Context Protocol) services 
 
 ## Quick start (Docker)
 
-1. Create a `.env` file (see the component READMEs for full details). Common values:
-	- `INPUTS_DIR` and `INPUTS_CACHE_DIR` for mounted input storage
-	- `GOOGLE_API_KEY` for Gemini-based analysis in the input processor
-	- `HF_TOKEN` (optional) for Hugging Face models
-	- `CRAWLER_AUTH_STATE_FILE` (optional) for authenticated crawling
+1. Create a `.env` file from `.env.example`. At minimum configure:
+	- `INPUTS_DIR` and `INPUTS_CACHE_DIR` as host paths for mounted input and cache storage
+	- `INPUT_PROCESSOR_PROVIDER` and the matching provider API key
+	- `CRAWLER_AUTH_ACTIONS_FILE` only when authenticated crawling is required
+
+	The authentication JSON file is sensitive. Keep it outside version control and mount it
+	through the `crawler` service as `auth_actions.json`.
 2. Build and run the stack:
 	```bash
 	docker compose up -d --build
@@ -31,6 +33,9 @@ This repository contains a small stack of MCP (Model Context Protocol) services 
 - `web-crawler`: `http://localhost:8000`
 - `filesystem-mcp`: `http://localhost:8002`
 - `input-processor`: `http://localhost:8003`
+
+All MCP services expose their endpoint at `/mcp`. The ports above are host ports; the
+containers listen on port `8000` internally.
 
 Refer to each service README for MCP configuration snippets and tool details.
 
@@ -47,6 +52,14 @@ Refer to each service README for MCP configuration snippets and tool details.
 - Web crawling: see `web-crawler/README.md`
 - Filesystem MCP: see `filesystem-mcp/README.md`
 
+The Compose file mounts the `src` directories of the Python services for local
+development. For a production-like image, remove those source mounts and rebuild the
+images so the code copied during `docker build` is used.
+
+Do not expose these services directly to the public internet. They currently rely on
+network-level isolation and should be placed behind an authenticated, restricted
+network when used outside a local development environment.
+
 ## Repository layout
 
 ```
@@ -57,11 +70,17 @@ docker-compose.yaml    # Core services
 docker-compose.gpu.yaml # GPU override
 ```
 
+## Support
+
+For installation questions or issues encountered, please contact `bperez@lksnext.com`
+or `eneko.pizarro@ehu.eus`.
+
 # LICENSE:
-This project is licensed under the PolyForm Noncommercial License 1.0.0.
+The code developed for this project is licensed under the PolyForm Noncommercial
+License 1.0.0. The `filesystem-mcp` component remains separately licensed under the MIT License.
 
 You may use, study, modify, and share this software for non-commercial purposes,
 including personal, educational, research, and evaluation use.
 
 Commercial use is not permitted without prior written permission from the copyright holder.
-For commercial licensing, please contact: `bperez@lksnext.com` or `eneko.pizarro@ehu.eus`.
+For commercial licensing, please contact LKS Next at `qacontact@lksnext.com`.

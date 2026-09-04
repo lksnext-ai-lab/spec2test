@@ -1,6 +1,6 @@
-# TFM-Eneko Web Crawler
+# Spec2Test Web Crawler
 
-A sophisticated web crawler built with Python that extracts structured data from web pages and exposes it through an MCP (Model Context Protocol) server. This tool is designed for TFM (Final Master's Project) research purposes.
+A sophisticated web crawler built with Python that extracts structured data from web pages and exposes it through an MCP (Model Context Protocol) server. This tool is designed for research and test automation purposes.
 
 ## Features
 
@@ -45,8 +45,8 @@ For each crawled page, the tool generates:
    {
        "mcp": {
            "servers": {
-               "tfm-crawler": {
-                   "url": "http://127.0.0.1:8000/mcp/"
+               "spec2Test-Crawler": {
+                  "url": "http://127.0.0.1:8000/mcp"
                }
            }
        }
@@ -57,7 +57,7 @@ For each crawled page, the tool generates:
 
 1. **Prepare the environment**:
    ```bash
-   cd tfm-crawler
+   cd web-crawler
    rm -rf .venv
    uv venv
    uv sync --no-dev
@@ -88,7 +88,7 @@ import asyncio
 # Crawl a website with custom parameters
 result = await web_crawler(
     url="https://example.com",
-    use_DFS=False,  # Use BFS strategy
+   use_DFS=False,  # Use BFS strategy (internal Python function name)
     max_depth=3,
     max_pages=100
 )
@@ -108,7 +108,7 @@ print(result)
 
 ### Authentication for Protected Sites
 
-Most PoC web applications require login. Instead of manually extracting cookies and tokens, use the **interactive capture tool** to log in once and save the full auth state.
+Most PoC web applications require login. Instead of manually extracting cookies and tokens, use the **interactive capture tool** to log in once and save a replayable action recording.
 
 #### Quick Auth Setup (Recommended)
 
@@ -125,11 +125,12 @@ Most PoC web applications require login. Instead of manually extracting cookies 
 
 3. **Log in normally** in the browser that opens, then press **Enter** in the terminal.
 
-4. The tool saves `auth_state.json` containing all cookies, localStorage, and sessionStorage.
+4. The tool saves `auth_actions.json` containing the recorded navigation and browser actions.
+   Do not commit this file: it can contain credentials, tokens, or other private values.
 
 5. **Set the env var** in your `.env`:
    ```env
-   CRAWLER_AUTH_STATE_FILE=auth_state.json
+   CRAWLER_AUTH_ACTIONS_FILE=auth_actions.json
    ```
 
 6. Rebuild/restart the crawler — it will use the captured state automatically.
@@ -158,21 +159,25 @@ Set `CRAWLER_LOGIN_RECORDING_FILE` to a Chrome DevTools Recorder JSON export.
 ### Crawling Parameters
 
 - `url`: Target website URL
-- `use_DFS`: Boolean flag for crawling strategy (True for DFS, False for BFS)
+- `use_dfs`: Boolean flag for crawling strategy (True for DFS, False for BFS)
 - `max_depth`: Maximum crawling depth
 - `max_pages`: Maximum number of pages to crawl
+- `use_auth`: Whether to replay the configured authentication actions (default: `true`)
+
+The MCP tool defaults to BFS, depth `2`, and at most `50` pages. Links are followed only
+when they belong to the same host as the starting URL.
 
 ### Server Configuration
 
-The MCP server runs on port 8000 and provides:
-- HTTP endpoint at `http://localhost:8000/mcp/`
+The MCP server listens on port `8000` and provides:
+- HTTP endpoint at `http://localhost:8000/mcp`
 - Stateless operation with JSON responses
 - Tool registration for web crawling functionality
 
 ## Project Structure
 
 ```
-tfm-crawler/
+web-crawler/
 ├── src/
 │   ├── main.py              # MCP server entry point
 │   └── crawler/
@@ -191,6 +196,23 @@ The crawler provides intelligent error handling for common issues:
 - Network timeout handling
 - Invalid URL detection
 
-## License
+## Security considerations
 
-This project is part of a Final Master's Project (TFM) by Eneko P.
+- Treat authentication recordings, cookies, and local storage values as secrets.
+- Only crawl applications and environments for which you have authorization.
+- Keep the service bound to a trusted local or private network. The MCP endpoint has no
+   application-level authentication configured by default.
+
+## Support
+
+For installation questions or issues encountered, please contact `bperez@lksnext.com`
+or `eneko.pizarro@ehu.eus`.
+
+# LICENSE:
+This project is licensed under the PolyForm Noncommercial License 1.0.0.
+
+You may use, study, modify, and share this software for non-commercial purposes,
+including personal, educational, research, and evaluation use.
+
+Commercial use is not permitted without prior written permission from the copyright holder.
+For commercial licensing, please contact LKS Next at `qacontact@lksnext.com`.
