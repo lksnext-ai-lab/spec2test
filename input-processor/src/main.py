@@ -6,7 +6,7 @@ from mcp.server.fastmcp import FastMCP
 from file_processor import FileProcessor
 from pathlib import Path
 
-mcp = FastMCP("TFM-InputProcessor", stateless_http=True, json_response=True)
+mcp = FastMCP("Spec2Test-InputProcessor", stateless_http=True, json_response=True)
 
 # Initialize the processor once
 processor = FileProcessor()

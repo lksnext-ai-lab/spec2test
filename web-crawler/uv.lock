@@ -3,6 +3,6 @@ revision = 3
 requires-python = ">=3.11"
 
 [[package]]
-name = "tfm-crawler"
+name = "spec2Test-Crawler"
 version = "0.1.0"
 source = { virtual = "." }

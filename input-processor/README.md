@@ -1,6 +1,6 @@
 # Input Processor Module
 
-A specialized component of the TFM-LLM2e system that processes and analyzes input files for automated test scenario generation. This module serves as an MCP (Model Context Protocol) server that can handle video recordings of browser sessions plus PDF, Markdown, and plain text documentation, extracting valuable information for test automation.
+A specialized component of the Spec2Test system that processes and analyzes input files for automated test scenario generation. This module serves as an MCP (Model Context Protocol) server that can handle video recordings of browser sessions plus PDF, Markdown, and plain text documentation, extracting valuable information for test automation.
 
 ## Features
 
@@ -105,6 +105,11 @@ Retrieves detailed analysis results for a specific file.
 content = await get_processed_content(file_hash="abc123def456...")
 ```
 
+### `get_all_processed_content`
+
+Returns the complete cached content for every processed file as a JSON array. This is
+useful when a downstream generator needs to combine several documents and recordings.
+
 ## Core Classes
 
 ### FileProcessor
@@ -185,8 +190,11 @@ docker build -t input-processor .
 
 Run the container:
 ```bash
-docker run -d -p 8001:8001 -v /path/to/inputs:/app/inputs input-processor
+docker run -d -p 8003:8000 -v /path/to/inputs:/app/inputs input-processor
 ```
+
+The container listens on port `8000`; `8003` is only the example host port. With the
+root Compose file, use `http://localhost:8003/mcp`.
 
 ### Direct Usage
 
@@ -327,7 +335,7 @@ The module includes comprehensive error handling:
 
 ## Integration Points
 
-This module integrates with other TFM-LLM2e components:
+This module integrates with other Spec2Test components:
 
 1. **Gherkin Generator**: Consumes processed analysis for feature file generation
 2. **Step Definition Generator**: Uses UI analysis for test automation code
@@ -345,4 +353,6 @@ When extending this module:
 
 ## License
 
-This module is part of the TFM-LLM2e project and follows the same licensing terms.
+This module is part of the Spec2Test project and is licensed under the PolyForm
+Noncommercial License 1.0.0. See the repository [LICENSE](../LICENSE) for the
+applicable terms.

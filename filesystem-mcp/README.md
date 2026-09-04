@@ -10,7 +10,10 @@ Node.js server implementing Model Context Protocol (MCP) for filesystem operatio
 - Search files
 - Get file metadata
 
-**Note**: The server will only allow operations within directories specified via `args`.
+The server accepts the port followed by one or more allowed directories as command-line
+arguments. Every filesystem operation is restricted to those directories. In the root
+Compose setup the service listens on container port `8000`, is published as host port
+`8002`, and allows `/app/inputs` and `/app/inputs/.cache`.
 
 ## API
 
@@ -211,4 +214,5 @@ docker build -t mcp/filesystem -f src/filesystem/Dockerfile .
 
 ## License
 
-This MCP server is licensed under the MIT License. This means you are free to use, modify, and distribute the software, subject to the terms and conditions of the MIT License. For more details, please see the LICENSE file in the project repository.
+This MCP server is based on the filesystem server from Anthropic and is licensed
+under the MIT License.
