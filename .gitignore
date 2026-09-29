@@ -12,3 +12,4 @@ build/
 /projects.json
 /docker-compose.override.yaml
 /.spec2test-data/
+/.codebase-memory/
