@@ -1,0 +1,21 @@
+# Rules installed by ProjectTraceKit. You can add your own: the installer
+# (integrate mode) only appends missing rules and never removes lines.
+
+# Python
+__pycache__/
+*.py[cod]
+
+# MCP configuration with tokens: never commit it
+.vscode/mcp.json
+.vscode/mcp.local.json
+
+# Local operational artifacts of codebase-memory-mcp
+.codebase-memory/
+
+# Backup written by migrate-glossary.py --write
+**/glossary.md.bak
+
+# Temporary files
+*.tmp
+
+# epics-consolidated.md is versioned in the destination: do not add it here.
