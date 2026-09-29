@@ -13,16 +13,23 @@ This repository contains a small stack of MCP (Model Context Protocol) services 
 ## Quick start (Docker)
 
 1. Create a `.env` file from `.env.example`. At minimum configure:
-	- `INPUTS_DIR` and `INPUTS_CACHE_DIR` as host paths for mounted input and cache storage
-	- `INPUT_PROCESSOR_PROVIDER` and the matching provider API key
+	- the API key of the provider you will use (for example `GOOGLE_API_KEY`)
 	- `CRAWLER_AUTH_ACTIONS_FILE` only when authenticated crawling is required
 
 	The authentication JSON file is sensitive. Keep it outside version control and mount it
 	through the `crawler` service as `auth_actions.json`.
-2. Build and run the stack:
+2. Describe your projects in `projects.json` (see `projects.example.json`), then generate
+	the mounts and start the stack:
 	```bash
+	cp projects.example.json projects.json   # first time only
+	$EDITOR projects.json
+	python scripts/sync_projects.py
 	docker compose up -d --build
 	```
+
+	`projects.json` is yours and stays out of version control. Each project gets its own
+	inputs folder plus its own cache and preprocessed folders, all mounted into
+	`input-processor` and `filesystem-mcp` under `/projects/<name>/…`.
 3. Optional GPU support:
 	```bash
 	docker compose -f docker-compose.yaml -f docker-compose.gpu.yaml up -d --build
@@ -41,10 +48,16 @@ Refer to each service README for MCP configuration snippets and tool details.
 
 ## Typical workflow
 
-1. Place documents and recordings in `INPUTS_DIR`.
+1. Place documents and recordings in a project's inputs folder (see `projects.json`).
 2. Run the input processor to analyze and cache content.
 3. Crawl the target web app to capture structure and UI elements.
 4. Use both outputs to generate Gherkin features and step definitions.
+
+Each project is addressed by the `X-Spec2Test-Project` request header, so one stack
+serves several workspaces at once. The committed `.vscode/mcp.json` sends that header
+with the example project name: change it to the project you are working on, or add one
+server entry per project. Call the `current_project` tool to check that a session
+resolved to the project you meant.
 
 ## Development
 
@@ -66,6 +79,8 @@ network when used outside a local development environment.
 filesystem-mcp/        # Sandboxed filesystem read/write for agents
 input-processor/       # File analysis for MP4, PDF, Markdown, and text inputs
 web-crawler/           # Site crawler that extracts links, UI elements, and content
+scripts/               # sync_projects.py: projects.json -> Compose override
+projects.example.json  # Starting point for your own projects.json (gitignored)
 docker-compose.yaml    # Core services
 docker-compose.gpu.yaml # GPU override
 ```

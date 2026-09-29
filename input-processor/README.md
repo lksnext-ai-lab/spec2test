@@ -1,355 +1,288 @@
 # Input Processor Module
 
-A specialized component of the Spec2Test system that processes and analyzes input files for automated test scenario generation. This module serves as an MCP (Model Context Protocol) server that can handle video recordings of browser sessions plus PDF, Markdown, and plain text documentation, extracting valuable information for test automation.
+A component of the Spec2Test stack that analyzes input files for automated test
+scenario generation. It runs as an MCP (Model Context Protocol) server that handles
+video recordings of browser sessions plus PDF, Markdown, and plain text documentation,
+extracting the information a Gherkin generator needs.
 
 ## Features
 
-- **Video Processing**: Analyzes MP4 recordings of browser sessions to extract UI interactions, workflows, and user journeys
-- **PDF Processing**: Extracts requirements, specifications, and business rules from PDF documents
-- **Markdown Processing**: Reads Markdown documents and enriches local image references with generated descriptions when available
+- **Video Processing**: Analyzes MP4 recordings of browser sessions to extract UI
+  interactions, workflows, and user journeys
+- **PDF Processing**: Extracts requirements, specifications, and business rules
+- **Markdown Processing**: Reads Markdown documents and enriches local image references
+  with generated descriptions when a vision model is configured
 - **Text Processing**: Reads plain text documents without additional preprocessing
-- **Intelligent Caching**: Implements SHA-256 hash-based caching to avoid reprocessing files
-- **MCP Server**: Provides tools accessible via Model Context Protocol for integration with AI agents
-- **Structured Output**: Formats analysis results for automated test scenario generation
+- **Project Workspaces**: One container serves several projects side by side; the
+  request asks for one with a header
+- **Name-based Caching**: Results are cached per source file name, with the content
+  digest stored inside the file, so unchanged files are never reprocessed
 
-## Architecture
+## Quick start
 
-The module consists of two main components:
+1. Copy the example configuration and point it at your folders:
 
-1. **`FileProcessor`** (`file_processor.py`): Core processing logic for analyzing files
-2. **`FastMCP Server`** (`main.py`): MCP server exposing processing capabilities as tools
+   ```bash
+   cp projects.example.json projects.json
+   ```
 
-## File Processing Capabilities
+   Each entry names a project and the folder holding its inputs. Relative paths are
+   resolved against the folder holding `projects.json`; `inputs` defaults to
+   `<name>/inputs`, and `preprocessed`/`cache` to `.spec2test-data/<name>/…`.
 
-### Video Analysis (.mp4)
-The video processor uses a multimodal LLM to analyze browser session recordings and extract:
+2. Generate the Compose override that mounts every project into `input-processor` and
+   `filesystem-mcp`, then start the stack:
 
-- **Visual Elements**: Layout, navigation bars, forms, buttons, input fields, tables, modals
-- **User Interactions**: Complete user journey, form submissions, navigation flows
-- **Key Functionality**: CRUD operations, search/filter functionality, main features
-- **Detailed Timeline**: Timestamped action sequences with specific data entered
-- **Technical Details**: URLs, error messages, data models, API calls
-- **Test Automation Data**: Reusable patterns, edge cases, data dependencies
+   ```bash
+   python scripts/sync_projects.py
+   docker compose up -d --build input-processor
+   ```
 
-> **Note on video processing per provider:**
-> - **Google Gemini** — native video upload (base64-encoded MP4).
-> - **OpenAI / Anthropic** — frames are extracted at 2 s intervals and sent as `image_url` content blocks (max 20 frames).
-> - **DeepSeek** — text-only provider. No vision/multimodal API support (as of May 2026). Falls back to metadata-only analysis: frame count, timestamps, resolution changes. For full visual analysis, use Google Gemini or OpenAI.
+   `sync_projects.py` also creates the output folders and refuses to run when an inputs
+   folder is missing, so a typo in `projects.json` fails on the host instead of inside
+   the container.
 
-### PDF Analysis (.pdf)
-The PDF processor extracts text content and uses LLM analysis to identify:
+3. Point an MCP client at `http://localhost:8003/mcp` and send the project header:
 
-- **Requirements**: Key specifications and functional requirements
-- **User Stories**: Use cases and user scenarios
-- **Business Rules**: Constraints and validation rules
-- **Data Models**: Entities and data structures
-- **Workflows**: Process flows and business logic
-- **Acceptance Criteria**: Test conditions and success metrics
+   ```json
+   {
+     "servers": {
+       "input-processor": {
+         "url": "http://localhost:8003/mcp",
+         "type": "http",
+         "headers": { "X-Spec2Test-Project": "shop-app" }
+       }
+     }
+   }
+   ```
 
-### Markdown Analysis (.md)
-Markdown files are read directly and, when a Google API key is available, local image references are enriched with generated descriptions before the content is summarized.
+   The header is what selects the workspace — edit its value to switch project. To keep
+   several projects available at once, add one server entry per project (for example
+   `input-processor-admin-portal`); note that VS Code addresses tools as
+   `<server>/<tool>`, so an agent that allowlists `input-processor/*` needs the extra
+   entries added to its tool list as well. Call the `current_project` tool to confirm
+   which project a session resolved to.
 
-### Text Analysis (.txt)
-Plain text files are read directly without preprocessing and summarized with the same document analysis flow used for other documentation inputs.
+## Configuration
 
-## API Reference
+Provider keys and tuning live in `.env`; provider *choice* lives in `projects.json`, so
+two projects can use different models from the same container.
 
-The module exposes three MCP tools:
+```json
+{
+  "defaults": { "llm": { "provider": "google_genai", "model": "gemini-2.5-flash" } },
+  "projects": [
+    {
+      "name": "shop-app",
+      "inputs": "/home/me/specs/shop-app",
+      "llm": { "model": "gemini-2.5-pro" },
+      "vision": { "provider": "openai", "model": "gpt-4o" }
+    }
+  ]
+}
+```
+
+- `defaults.llm` / `defaults.vision` apply to every project; a project may override
+  either one, and a partial override only replaces the fields it sets.
+- `llm` is the model that reads documents and drives video analysis.
+- `vision` is the model that describes images (PDF renderings, Markdown images). Leave
+  it unset to reuse `llm`, or set it to a project whose provider cannot see images to
+  disable image enrichment for that project.
+- Names must match `[a-z0-9][a-z0-9._-]*`. The container and `sync_projects.py` share
+  that rule, and a duplicate name is refused.
+
+### Choosing a provider and model
+
+Providers are resolved by name from two sources:
+
+| Provider                               | Capabilities         | Notes                                     |
+| -------------------------------------- | -------------------- | ----------------------------------------- |
+| `google_genai`                         | text, images, native video upload | Gemini; large recordings go through the File API |
+| `openai` / `anthropic`                 | text, images         | Video is analyzed as sampled frames       |
+| `deepseek`                             | text                 | Metadata-only video analysis              |
+| `openrouter`                           | text, images, inline video | Model list in `src/providers/catalog.json` |
+| `qwen`                                 | text, images         | DashScope compatible-mode endpoint        |
+
+OpenAI-compatible providers are declared declaratively in
+`src/providers/catalog.json` (base URL, API key variable, default model, capabilities,
+and optional per-model capability overrides), so adding one is a config change rather
+than code.
+
+### How a video strategy is chosen
+
+Capabilities decide, not provider names. In order of preference:
+
+1. **Native upload** — the recording is uploaded through the provider's file API, polled
+   until it is processed, analyzed, and deleted afterwards. Best fidelity, no size limit
+   worth worrying about.
+2. **Inline video** — the MP4 is sent base64-encoded, split into segments first when it
+   is large or long; segment summaries are re-timestamped onto the full timeline and
+   merged into one report.
+3. **Frame sampling** — evenly spaced frames are sent as images.
+4. **Metadata-only** — for text-only providers: a report built from frame count,
+   duration, and resolution changes, with a warning that visual detail is unavailable.
+
+### Environment variables
+
+Secrets: `GOOGLE_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`,
+`OPENROUTER_API_KEY`, `DASHSCOPE_API_KEY` (as required by the providers you use).
+
+Tuning (all optional, defaults in brackets):
+
+| Variable                                      | Purpose                                          |
+| --------------------------------------------- | ------------------------------------------------ |
+| `INPUT_PROCESSOR_PROJECTS_CONFIG`             | Path to `projects.json` in the container `[/config/projects.json]` |
+| `INPUT_PROCESSOR_PROJECTS_ROOT`               | Folder holding the mounted projects `[/projects]` |
+| `INPUT_PROCESSOR_LOG_LEVEL`                   | `DEBUG`, `INFO`, … `[INFO]`                      |
+| `INPUT_PROCESSOR_VIDEO_SEGMENT_SECONDS`       | Target segment length `[60]`                     |
+| `INPUT_PROCESSOR_VIDEO_SPLIT_MIN_MB`          | Split a file at least this big `[12]`            |
+| `INPUT_PROCESSOR_VIDEO_SPLIT_BY_DURATION`     | Also split long recordings `[true]`              |
+| `INPUT_PROCESSOR_VIDEO_FORCE_SPLIT`           | Always split `[false]`                           |
+| `INPUT_PROCESSOR_VIDEO_REQUIRE_AUDIO`         | Refuse OpenCV splitting, which drops audio `[true]` |
+| `INPUT_PROCESSOR_VIDEO_CONSOLIDATE`           | Merge segment summaries into one report `[true]` |
+| `INPUT_PROCESSOR_VIDEO_FRAME_SECONDS`         | Seconds between sampled frames `[2]`             |
+| `INPUT_PROCESSOR_VIDEO_MAX_FRAMES`            | Frame budget for frame sampling `[20]`           |
+
+## MCP tools
+
+### `current_project`
+
+Reports which project the request was resolved as: name, container paths, and the
+configured models. Use it to confirm you are looking at the intended files.
+
+```json
+{ "name": "shop-app", "inputs": "/projects/shop-app/inputs", "cache": "/projects/shop-app/cache",
+  "provider": "google_genai", "model": "gemini-2.5-flash", "vision_provider": "", "vision_model": "" }
+```
 
 ### `process_files`
-Processes all supported files in the input directory.
 
-**Parameters:**
-- `input_dir` (str, optional): Directory containing input files (default: "/app/inputs/")
-- `cache_dir` (str, optional): Directory for caching results (default: "/app/inputs/.cache/")
+Processes every supported file in the project's inputs folder and returns one object per
+file, plus one per orphaned cache entry:
 
-**Returns:**
-- Detailed analysis results for all processed files, formatted for test scenario generation
-
-**Example:**
-```python
-# Process all files in default directory
-result = await process_files()
-
-# Process files in custom directory
-result = await process_files(input_dir="/path/to/inputs", cache_dir="/path/to/cache")
+```json
+[{ "name": "login-demo.mp4", "format": ".mp4", "size": 15728640,
+   "sha256": "9f2c…", "status": "new", "processed_at": "2026-09-29T10:00:00Z" }]
 ```
+
+`status` is one of:
+
+| Status     | Meaning                                                                 |
+| ---------- | ----------------------------------------------------------------------- |
+| `new`      | First time this file is processed                                       |
+| `cached`   | Unchanged since the last run: no model call                             |
+| `updated`  | Content changed: reprocessed, and the previous result is archived       |
+| `renamed`  | Same content under a new name: re-keyed, no model call                  |
+| `orphaned` | Cached, but its source is gone from the inputs folder (content is kept) |
+| `error`    | Could not be processed; the object carries an `error` field             |
+
+Files that fail are reported individually — one unreadable PDF does not fail the run.
 
 ### `list_processed_files`
-Lists all processed files with metadata.
 
-**Parameters:**
-- `cache_dir` (str, optional): Directory containing cached files (default: "/app/inputs/.cache/")
-
-**Returns:**
-- CSV-formatted list with original filename, format, file size, and unique hash identifier
-
-**Example:**
-```python
-# List all processed files
-files_list = await list_processed_files()
-```
+Lists everything with cached content: `name`, `sha256` and `processed_at`.
 
 ### `get_processed_content`
-Retrieves detailed analysis results for a specific file.
 
-**Parameters:**
-- `file_hash` (str, required): SHA-256 hash of the processed file
-
-**Returns:**
-- Complete analysis results for the specified file
-
-**Example:**
-```python
-# Get content for a specific file
-content = await get_processed_content(file_hash="abc123def456...")
-```
+Returns the full analysis of one file. Pass `file_name` (as returned by
+`list_processed_files`). `file_hash` is deprecated but still accepted: a SHA-256 digest
+or any unambiguous prefix of one resolves to the same file.
 
 ### `get_all_processed_content`
 
-Returns the complete cached content for every processed file as a JSON array. This is
-useful when a downstream generator needs to combine several documents and recordings.
+Returns `name`, `sha256`, `processed_at` and `content` for every cached file in one call.
 
-## Core Classes
+## Cache layout
 
-### FileProcessor
+Given a project whose cache is mounted at `/projects/shop-app/cache` and an input
+`login-demo.mp4`:
 
-The main processing class that handles file analysis and caching.
-
-#### Constructor
-```python
-FileProcessor(input_dir="/app/inputs/", cache_dir="/app/inputs/.cache/")
+```
+cache/login-demo.mp4.md          # front-matter + processed content
+cache/.history/login-demo.mp4.9f2c1a04.20260929T100000Z.md   # superseded result
+preprocessed/login-demo.mp4.md   # intermediate form fed to the model
+preprocessed/login-demo.mp4_images/  # images extracted from a PDF
+cache/_segments/                 # scratch space for video splitting
 ```
 
-#### Key Methods
+Every cache file starts with a front-matter block:
 
-**`process_all_files() -> List[str]`**
-- Processes all supported files in the input directory
-- Returns list of file hashes for successfully processed files
+```markdown
+---
+source: "login-demo.mp4"
+format: ".mp4"
+size: 15728640
+sha256: "9f2c…"
+processed_at: "2026-09-29T10:00:00Z"
+provider: "google_genai"
+model: "gemini-2.5-flash"
+---
 
-**`process_file(file_path: Path) -> Optional[str]`**
-- Processes a single file based on its format
-- Returns file hash if successful, None otherwise
+…processed content…
+```
 
-**`get_cached_content(file_hash: str) -> Optional[str]`**
-- Retrieves cached content by hash
-- Returns cached analysis or None if not found
+The source name makes the cache human-readable; the digest makes change detection
+independent of the file name, so renaming a cache file by hand never causes a false
+"changed". Writes are atomic (temporary file + rename), and a legacy `<hash>.txt` cache
+from an older installation is migrated into this layout on first use.
 
-**`get_file_hash(file_path: Path) -> str`**
-- Generates SHA-256 hash of file content
-- Used for caching and file identification
+## Architecture
 
-**`is_processed(file_hash: str) -> bool`**
-- Checks if file is already processed and cached
-- Prevents unnecessary reprocessing
+```
+src/
+├── main.py              # MCP server: the five tools, header -> project resolution
+├── settings.py          # Environment parsing (typed, with defaults)
+├── processing_service.py# Orchestrates one project's run; reports per-file status
+├── projects/            # projects.json parsing, header handling, per-project runtime
+├── providers/           # Provider strategy + registry (+ catalog.json)
+├── handlers/            # One handler per format: video, pdf, markdown, text
+├── analysis/            # Document summarizer, image describer, video strategies
+├── preprocessing/       # PDF -> Markdown, Markdown image enrichment
+├── cache/               # Front-matter cache, index, reconciliation, preprocessed store
+├── prompts/             # Prompt templates as .md files
+└── utils/               # Hashing, text, media, lazy OpenCV access
+```
 
-#### Private Methods
+Design notes:
 
-**`process_video(file_path: Path) -> str`**
-- Processes MP4 video files using Gemini 2.0 Flash
-- Extracts UI elements, workflows, and interaction patterns
+- **Strategy + registry.** Providers and video analyzers are chosen by capability and
+  registered in a registry; nothing switches on a provider name.
+- **Constructor injection.** Every collaborator is passed in, so a test can build a
+  service with a stub chat model and no network.
+- **Blocking work runs off the event loop.** MCP tools are `async`, but hashing,
+  file access, and LLM calls run in a worker thread under the project's lock.
+- **Heavy imports are lazy.** OpenCV, PyPDF2, PyMuPDF, and the Google SDK load only
+  when a file that needs them is processed.
 
-**`process_pdf(file_path: Path) -> str`**
-- Extracts text from PDF files using PyPDF2
-- Analyzes content for requirements and specifications
+## Development
 
-**`process_text_document(file_path: Path) -> str`**
-- Reads Markdown and plain text files
-- Enriches Markdown images when preprocessing is available
-- Analyzes content for requirements and specifications
-
-**`create_cache_file(file_path: Path, file_hash: str, processed_content: str)`**
-- Creates cache file with metadata and processed content
-- Stores results in CSV format with analysis content
-
-## Installation & Setup
-
-### Requirements
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-dev.txt      # plus -r requirements.txt for the runtime
+python -m pytest tests -q
 ```
 
-**Dependencies:**
-- `langgraph`: Graph-based workflow management
-- `langchain`: LLM integration framework
-- `langchain-google-genai`: Google Gemini integration
-- `google-generativeai`: Google AI client
-- `langchain-mcp-adapters`: MCP protocol adapters
-- `PyPDF2`: PDF processing library
+The suite needs no API keys and no heavyweight dependencies: chat models, OpenCV, the
+Google SDK, and `mcp` are replaced with small test doubles in `tests/support.py`.
 
-### Environment Variables
-Ensure you have the following environment variables set:
-- `GOOGLE_API_KEY`: Your Google AI API key for Gemini access
+Run the server directly:
 
-### Docker Usage
-
-Build the Docker image:
 ```bash
-docker build -t input-processor .
+python src/main.py            # listens on 0.0.0.0:8000, endpoint /mcp
 ```
 
-Run the container:
-```bash
-docker run -d -p 8003:8000 -v /path/to/inputs:/app/inputs input-processor
-```
+Inside Compose it listens on `8000`; `8003` is the host port.
 
-The container listens on port `8000`; `8003` is only the example host port. With the
-root Compose file, use `http://localhost:8003/mcp`.
+## Error handling
 
-### Direct Usage
-
-Run the MCP server:
-```bash
-python src/main.py
-```
-
-Or process files directly:
-```bash
-python src/file_processor.py
-```
-
-## Usage Examples
-
-### Basic Processing Workflow
-
-1. **Place files in input directory**
-   - Add MP4 video recordings of browser sessions
-   - Add PDF, Markdown, or text documents with requirements/specifications
-
-2. **Process all files**
-   ```python
-   result = await process_files()
-   ```
-
-3. **List processed files**
-   ```python
-   files_list = await list_processed_files()
-   ```
-
-4. **Retrieve specific content**
-   ```python
-   content = await get_processed_content(file_hash="your_file_hash")
-   ```
-
-### Integration with Test Generation
-
-The processed content is specifically formatted for automated test scenario generation:
-
-```python
-# Get processed video analysis
-video_analysis = await get_processed_content(video_hash)
-# Contains: UI elements, user workflows, interaction patterns
-
-# Get processed document requirements
-document_requirements = await get_processed_content(document_hash)
-# Contains: User stories, business rules, acceptance criteria, and Markdown image context when available
-
-# Use both for comprehensive test generation
-test_scenarios = generate_test_scenarios(video_analysis, document_requirements)
-```
-
-## File Structure
-
-```
-input-processor/
-├── src/
-│   ├── main.py              # MCP server implementation
-│   ├── file_processor.py    # Core processing logic
-│   └── __pycache__/         # Python cache files
-├── Dockerfile               # Container configuration
-├── requirements.txt         # Python dependencies
-└── README.md               # This documentation
-```
-
-## Output Format
-
-### Video Analysis Output
-```
-File Hash: abc123def456...
-Original Name: browser_session.mp4
-Format: .mp4
-File Size: 15728640
-
-PROCESSED CONTENT:
-==================
-
-**Visual Elements and UI Components:**
-- Navigation bar with logo, menu items, user profile
-- Search form with input field and filter dropdown
-- Data table with sortable columns
-- Modal dialogs for form submissions
-
-**User Interactions and Workflows:**
-(0:00) Home Page: User lands on dashboard
-(0:03) Click "Search": User clicks search button
-(0:05) Enter Query: User types "test data" in search field
-...
-
-**Test Scenario Relevance:**
-- Login workflow automation
-- Search functionality testing
-- Form validation scenarios
-```
-
-### PDF Analysis Output
-```
-File Hash: def789ghi012...
-Original Name: requirements.pdf
-Format: .pdf
-File Size: 2048576
-
-PROCESSED CONTENT:
-==================
-
-**Key Requirements:**
-- User authentication system
-- Data validation rules
-- Search and filtering capabilities
-
-**User Stories:**
-- As a user, I want to search for records
-- As an admin, I want to manage user accounts
-
-**Business Rules:**
-- Passwords must be at least 8 characters
-- Search results limited to 100 items
-...
-```
-
-## Error Handling
-
-The module includes comprehensive error handling:
-
-- **File Access Errors**: Graceful handling of missing or inaccessible files
-- **Processing Errors**: Continued processing even if individual files fail
-- **Cache Errors**: Automatic cache directory creation and validation
-- **LLM Errors**: Retry logic and fallback mechanisms
-- **PDF Encryption**: Automatic decryption attempts for encrypted PDFs
-
-## Performance Considerations
-
-- **Caching**: Processed files are cached to avoid redundant processing
-- **Memory Management**: Large files are processed in chunks
-- **Async Processing**: MCP server supports concurrent requests
-- **Resource Limits**: Configurable timeouts and retry mechanisms
-
-## Integration Points
-
-This module integrates with other Spec2Test components:
-
-1. **Gherkin Generator**: Consumes processed analysis for feature file generation
-2. **Step Definition Generator**: Uses UI analysis for test automation code
-3. **Web Crawler**: Complements video analysis with additional site structure data
-
-## Contributing
-
-When extending this module:
-
-1. Add new file format support by extending `supported_formats`
-2. Implement new processing methods following the existing pattern
-3. Update the MCP tools to expose new functionality
-4. Ensure proper error handling and caching
-5. Add comprehensive documentation for new features
+- **Per-file isolation**: a file that fails is reported with `status: "error"` and an
+  explanation; the rest of the run continues.
+- **Missing project folder**: a project whose `inputs` folder was never mounted fails
+  with a message naming `scripts/sync_projects.py`.
+- **Unknown or missing header**: the tool returns an error listing the configured
+  projects instead of guessing.
+- **PDF encryption**: decryption is attempted before falling back to a clear error.
+- **Optional packages**: if PyPDF2, OpenCV, or `google-generativeai` are missing, the
+  error says which package to install.
 
 ## License
 
