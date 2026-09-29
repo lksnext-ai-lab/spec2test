@@ -251,7 +251,7 @@ Design notes:
   service with a stub chat model and no network.
 - **Blocking work runs off the event loop.** MCP tools are `async`, but hashing,
   file access, and LLM calls run in a worker thread under the project's lock.
-- **Heavy imports are lazy.** OpenCV, PyPDF2, PyMuPDF, and the Google SDK load only
+- **Heavy imports are lazy.** OpenCV, PyMuPDF, and the Google SDK load only
   when a file that needs them is processed.
 
 ## Development
@@ -267,8 +267,11 @@ Google SDK, and `mcp` are replaced with small test doubles in `tests/support.py`
 Run the server directly:
 
 ```bash
-python src/main.py            # listens on 0.0.0.0:8000, endpoint /mcp
+python src/main.py            # listens on 127.0.0.1:8000, endpoint /mcp
 ```
+
+Set `INPUT_PROCESSOR_HOST=0.0.0.0` to bind to every interface (the Compose file
+does this inside the container so the published port can reach it).
 
 Inside Compose it listens on `8000`; `8003` is the host port.
 
@@ -281,7 +284,7 @@ Inside Compose it listens on `8000`; `8003` is the host port.
 - **Unknown or missing header**: the tool returns an error listing the configured
   projects instead of guessing.
 - **PDF encryption**: decryption is attempted before falling back to a clear error.
-- **Optional packages**: if PyPDF2, OpenCV, or `google-generativeai` are missing, the
+- **Optional packages**: if PyMuPDF, OpenCV, or `google-generativeai` are missing, the
   error says which package to install.
 
 ## License

@@ -1,5 +1,6 @@
 import uvicorn
 import asyncio
+import os
 
 from mcp.server.fastmcp import FastMCP
 from crawler.web_crawler import web_crawler
@@ -38,5 +39,11 @@ async def web_crawl(
     return await web_crawler(url, use_dfs, max_depth, max_pages, use_auth)
 
 if __name__ == "__main__":
-    """Run the MCP server"""    
-    uvicorn.run(mcp.streamable_http_app, host="0.0.0.0", port=8000)
+    """Run the MCP server"""
+    # Default to loopback; set WEB_CRAWLER_HOST=0.0.0.0 to expose the server
+    # (for example inside a container where the published port must reach it).
+    uvicorn.run(
+        mcp.streamable_http_app,
+        host=os.getenv("WEB_CRAWLER_HOST", "127.0.0.1"),
+        port=int(os.getenv("WEB_CRAWLER_PORT", "8000")),
+    )

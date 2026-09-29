@@ -3,7 +3,6 @@ langchain-openai
 langchain-anthropic
 langchain-google-genai
 google-generativeai
-PyPDF2
 uvicorn
 # The MCP server uses the FastMCP bundled with SDK 1.x (mcp.server.fastmcp).
 # SDK 2.x renamed it to MCPServer and moved the API, so the major version is

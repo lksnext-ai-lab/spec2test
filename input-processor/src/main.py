@@ -272,8 +272,13 @@ async def get_all_processed_content(ctx: Context) -> str:
 if __name__ == "__main__":
     import uvicorn
 
-    _log.info("Starting input processor on port 8000 (projects: %s)", _configured_projects())
+    _log.info(
+        "Starting input processor on %s:%s (projects: %s)",
+        settings.host,
+        settings.port,
+        _configured_projects(),
+    )
     # streamable_http_app() is a method returning the Starlette ASGI app, so it
     # has to be called: passing the method itself makes uvicorn treat it as an
     # app factory and fail.
-    uvicorn.run(mcp.streamable_http_app(), host="0.0.0.0", port=8000)
+    uvicorn.run(mcp.streamable_http_app(), host=settings.host, port=settings.port)

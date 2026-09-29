@@ -150,6 +150,30 @@ def test_invalid_names_are_refused(cache: CacheRepository) -> None:
             cache.path_for(name)
 
 
+def test_paths_that_escape_the_cache_directory_are_refused(cache: CacheRepository) -> None:
+    for name in (".", "..", "nested/../escape.txt", "/etc/passwd"):
+        with pytest.raises(ValueError, match="Invalid source file name"):
+            cache.path_for(name)
+
+
+def test_archiving_refuses_an_entry_that_points_outside_the_cache(
+    cache: CacheRepository, tmp_path: Path
+) -> None:
+    outside = tmp_path / "outside.md"
+    outside.write_text("body", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="outside the cache directory"):
+        cache.archive(entry_for(outside))
+
+
+def test_legacy_migration_refuses_a_traversing_hash(cache: CacheRepository) -> None:
+    legacy = cache.directory / f"{'b' * 64}.txt"
+    legacy.write_text(legacy_text(sha256="../../escape"), encoding="utf-8")
+
+    assert cache.migrate_legacy() == []
+    assert legacy.is_file()
+
+
 def test_read_by_name_returns_none_when_absent(cache: CacheRepository) -> None:
     assert cache.read_by_name("missing.txt") is None
     assert cache.read_by_name("../escape.txt") is None

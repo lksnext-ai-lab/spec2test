@@ -62,6 +62,8 @@ class Settings:
     projects_config: Path = DEFAULT_PROJECTS_CONFIG
     projects_root: Path = DEFAULT_PROJECTS_ROOT
     log_level: str = "INFO"
+    host: str = "127.0.0.1"
+    port: int = 8000
 
     @classmethod
     def from_env(cls, env: Optional[Mapping[str, str]] = None) -> "Settings":
@@ -84,6 +86,8 @@ class Settings:
                 _get_str(env, "INPUT_PROCESSOR_PROJECTS_ROOT", str(DEFAULT_PROJECTS_ROOT))
             ),
             log_level=_get_str(env, "INPUT_PROCESSOR_LOG_LEVEL", "INFO").upper(),
+            host=_get_str(env, "INPUT_PROCESSOR_HOST", "127.0.0.1"),
+            port=_get_int(env, "INPUT_PROCESSOR_PORT", 8000),
         )
 
 

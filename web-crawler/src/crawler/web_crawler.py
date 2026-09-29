@@ -1,4 +1,3 @@
-import asyncio
 from collections import deque
 from crawl4ai import AsyncWebCrawler
 from crawl4ai.async_configs import BrowserConfig, CrawlerRunConfig
@@ -543,7 +542,3 @@ async def web_crawler(url: str, use_DFS: bool, max_depth: int, max_pages: int, u
                 output_lines.append(f"Error processing HTML: {str(e)}")
 
     return "\n".join(output_lines)
-
-if __name__ == "__main__":
-    result = asyncio.run(web_crawler())
-    print(result)

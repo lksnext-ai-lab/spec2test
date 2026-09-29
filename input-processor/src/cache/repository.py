@@ -55,9 +55,22 @@ class CacheRepository:
 
     def path_for(self, source_name: str) -> Path:
         """Path of the cache file belonging to ``source_name``."""
-        if not source_name or Path(source_name).name != source_name:
-            raise ValueError(f"Invalid source file name: {source_name!r}")
-        return self.directory / f"{source_name}{SUFFIX}"
+        name = _safe_component(source_name, "source file name")
+        return self._confined(self.directory / f"{name}{SUFFIX}")
+
+    def _confined(self, path: Path) -> Path:
+        """Reject any path that would escape the cache directory.
+
+        Every path this repository writes to is derived from a name that can
+        originate outside the application (a file name, or the front-matter of a
+        cache file), so it is checked to stay inside ``self.directory`` before
+        being used.
+        """
+        base = self.directory.resolve()
+        resolved = path.resolve()
+        if resolved != base and base not in resolved.parents:
+            raise ValueError(f"Refusing to use a path outside the cache directory: {path}")
+        return path
 
     def index(self) -> CacheIndex:
         """Scan the cache directory and index every readable entry."""
@@ -122,9 +135,10 @@ class CacheRepository:
 
     def archive(self, entry: CacheEntry) -> Path:
         """Move an entry to ``.history`` so the previous version is not lost."""
+        source = self._confined(entry.path)
         target = self._unique_history_path(entry)
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(entry.path), str(target))
+        shutil.move(str(source), str(target))
         _log.info("Archived previous version of %s at %s", entry.source, target)
         return target
 
@@ -170,7 +184,9 @@ class CacheRepository:
             return None
 
         name = metadata.get("original_name") or f"{path.stem}{SUFFIX}"
-        sha256 = metadata.get("hash") or path.stem
+        sha256 = _safe_component(
+            metadata.get("hash") or path.stem, "legacy hash"
+        )
         target = self.path_for(name)
 
         if target.is_file():
@@ -194,11 +210,13 @@ class CacheRepository:
         return entry
 
     def _park_legacy(self, path: Path, sha256: str) -> None:
-        parked = self.history_dir / LEGACY_DIRNAME / f"{sha256}{_LEGACY_SUFFIX}"
+        digest = _safe_component(sha256, "legacy hash")
+        parked = self._confined(self.history_dir / LEGACY_DIRNAME / f"{digest}{_LEGACY_SUFFIX}")
         parked.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(path), str(parked))
 
     def _write_entry(self, entry: CacheEntry, content: str) -> None:
+        self._confined(entry.path)
         entry.path.parent.mkdir(parents=True, exist_ok=True)
         document = render(entry.to_front_matter()) + _normalise_body(content)
         temporary = entry.path.with_name(f"{entry.path.name}.tmp")
@@ -206,12 +224,15 @@ class CacheRepository:
         os.replace(temporary, entry.path)
 
     def _unique_history_path(self, entry: CacheEntry) -> Path:
-        stem = f"{entry.source}.{entry.short_hash}.{timestamp_for_filename(entry.processed_at)}"
-        candidate = self.history_dir / f"{stem}{SUFFIX}"
+        stem = (
+            f"{_safe_component(entry.source, 'cache source name')}"
+            f".{entry.short_hash}.{timestamp_for_filename(entry.processed_at)}"
+        )
+        candidate = self._confined(self.history_dir / f"{stem}{SUFFIX}")
 
         counter = 1
         while candidate.exists():
-            candidate = self.history_dir / f"{stem}-{counter}{SUFFIX}"
+            candidate = self._confined(self.history_dir / f"{stem}-{counter}{SUFFIX}")
             counter += 1
         return candidate
 
@@ -221,6 +242,17 @@ class CacheRepository:
                 "Cache directory %s contains duplicate source names; the newest file wins.",
                 self.directory,
             )
+
+
+def _safe_component(value: str, label: str) -> str:
+    """Reject values that are not a single, plain path component.
+
+    Guards against path traversal: a value like ``../../etc/passwd`` or an
+    absolute path is not a plain name and is rejected.
+    """
+    if not value or value in {".", ".."} or Path(value).name != value:
+        raise ValueError(f"Invalid {label}: {value!r}")
+    return value
 
 
 def _normalise_body(content: str) -> str:

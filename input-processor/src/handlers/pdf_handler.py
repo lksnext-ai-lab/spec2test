@@ -7,7 +7,7 @@ from typing import Optional
 from analysis.document_summarizer import DocumentSummarizer
 from cache.source import SourceFile
 from handlers.base import FileHandler, HandlerContext
-from preprocessing.pdf_text import extract_text_with_pypdf2
+from preprocessing.pdf_text import extract_text_with_pymupdf
 from preprocessing.pdf_to_markdown import PdfToMarkdown
 
 EMPTY_PDF_MESSAGE = (
@@ -43,4 +43,4 @@ class PdfHandler(FileHandler):
     def _extract(self, source: SourceFile, context: HandlerContext) -> str:
         if self._converter is not None and context.preprocessed is not None:
             return self._converter.convert(source)
-        return extract_text_with_pypdf2(source.path)
+        return extract_text_with_pymupdf(source.path)

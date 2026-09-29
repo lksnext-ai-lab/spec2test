@@ -36,6 +36,9 @@ services:
       - HF_HOME=/root/.cache/huggingface
       - HF_HUB_ENABLE_HF_TRANSFER=1
       - HF_TOKEN=${HF_TOKEN:-}
+      # Bind inside the container so the published port can reach it; the
+      # application default is 127.0.0.1 for local runs.
+      - INPUT_PROCESSOR_HOST=0.0.0.0
     command: python /app/src/main.py
     networks:
       - spec2test-network
