@@ -167,14 +167,14 @@ def test_services_are_read_from_the_base_compose_file(tmp_path: Path) -> None:
     compose = tmp_path / "docker-compose.yaml"
     compose.write_text(
         "name: Spec2Test\n\nservices:\n  crawler:\n    image: x\n  input-processor:\n"
-        "    image: y\n  filesystem-mcp:\n    image: z\n\nnetworks:\n  net:\n"
+        "    image: y\n\nnetworks:\n  net:\n"
         "    driver: bridge\n",
         encoding="utf-8",
     )
 
     # The crawler is defined by the base file, but it has no use for the project
     # folders, so it is not handed any.
-    assert sync_projects.configured_services(compose) == ("input-processor", "filesystem-mcp")
+    assert sync_projects.configured_services(compose) == ("input-processor",)
 
     assert sync_projects.configured_services(tmp_path / "missing.yaml") == sync_projects.SERVICES
 
@@ -192,17 +192,17 @@ def test_a_compose_file_without_our_services_is_reported(
     assert not (tmp_path / "docker-compose.override.yaml").exists()
 
 
-def test_the_override_mounts_every_project_into_both_services(tmp_path: Path) -> None:
+def test_the_override_mounts_every_project_into_the_service(tmp_path: Path) -> None:
     config = write_config(
         tmp_path,
         {"projects": [project_entry(tmp_path, "alpha"), project_entry(tmp_path, "beta")]},
     )
     projects = sync_projects.load_config(config)
 
-    override = sync_projects.render_override(projects, config, ("input-processor", "filesystem-mcp"))
+    override = sync_projects.render_override(projects, config, ("input-processor",))
 
     parsed = yaml.safe_load(override)
-    assert set(parsed["services"]) == {"input-processor", "filesystem-mcp"}
+    assert set(parsed["services"]) == {"input-processor"}
 
     volumes = parsed["services"]["input-processor"]["volumes"]
     for name in ("alpha", "beta"):
@@ -213,7 +213,6 @@ def test_the_override_mounts_every_project_into_both_services(tmp_path: Path) ->
         ) in volumes
         assert f"{tmp_path / '.spec2test-data' / name / 'cache'}:/projects/{name}/cache" in volumes
     assert f"{config.resolve()}:/config/projects.json:ro" in volumes
-    assert parsed["services"]["filesystem-mcp"]["volumes"] == volumes
 
 
 def test_the_override_is_header_commentated(tmp_path: Path) -> None:

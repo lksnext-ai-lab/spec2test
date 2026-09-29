@@ -12,3 +12,6 @@ build/
 /projects.json
 /docker-compose.override.yaml
 /.spec2test-data/
+
+# Claude files:
+.claude/
