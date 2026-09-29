@@ -145,15 +145,18 @@ def test_cache_files_are_named_after_their_source(cache: CacheRepository, tmp_pa
 
 
 def test_invalid_names_are_refused(cache: CacheRepository) -> None:
-    for name in ("", "../escape.txt", "nested/file.txt"):
+    for name in ("", ".", "..", "nested/", "a/.."):
         with pytest.raises(ValueError, match="Invalid source file name"):
             cache.path_for(name)
 
 
-def test_paths_that_escape_the_cache_directory_are_refused(cache: CacheRepository) -> None:
-    for name in (".", "..", "nested/../escape.txt", "/etc/passwd"):
-        with pytest.raises(ValueError, match="Invalid source file name"):
-            cache.path_for(name)
+def test_traversing_names_are_confined_to_the_cache_directory(cache: CacheRepository) -> None:
+    for name, expected in (
+        ("../escape.txt", "escape.txt.md"),
+        ("nested/../escape.txt", "escape.txt.md"),
+        ("/etc/passwd", "passwd.md"),
+    ):
+        assert cache.path_for(name) == cache.directory / expected
 
 
 def test_archiving_refuses_an_entry_that_points_outside_the_cache(
@@ -166,12 +169,18 @@ def test_archiving_refuses_an_entry_that_points_outside_the_cache(
         cache.archive(entry_for(outside))
 
 
-def test_legacy_migration_refuses_a_traversing_hash(cache: CacheRepository) -> None:
+def test_legacy_migration_confines_a_traversing_hash(cache: CacheRepository) -> None:
     legacy = cache.directory / f"{'b' * 64}.txt"
     legacy.write_text(legacy_text(sha256="../../escape"), encoding="utf-8")
 
-    assert cache.migrate_legacy() == []
-    assert legacy.is_file()
+    migrated = cache.migrate_legacy()
+
+    assert [entry.source for entry in migrated] == ["login-demo.mp4"]
+    assert migrated[0].sha256 == "escape"
+    # The legacy file is parked inside the cache, never outside it.
+    assert (cache.directory / HISTORY_LEGACY / "escape.txt").is_file()
+    assert not (cache.directory.parent / "escape.txt").exists()
+    assert not legacy.exists()
 
 
 def test_read_by_name_returns_none_when_absent(cache: CacheRepository) -> None:

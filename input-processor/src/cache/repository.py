@@ -54,9 +54,14 @@ class CacheRepository:
         self.history_dir.mkdir(parents=True, exist_ok=True)
 
     def path_for(self, source_name: str) -> Path:
-        """Path of the cache file belonging to ``source_name``."""
-        name = _safe_component(source_name, "source file name")
-        return self._confined(self.directory / f"{name}{SUFFIX}")
+        """Path of the cache file belonging to ``source_name``.
+
+        ``source_name`` can originate outside the application (a user-supplied
+        file name, or the ``original_name`` recorded in a legacy cache file), so
+        it is validated before it is turned into a path: it must be a plain file
+        name, and the resulting path is confined to the cache directory.
+        """
+        return self.directory / f"{_safe_name(source_name)}{SUFFIX}"
 
     def _confined(self, path: Path) -> Path:
         """Reject any path that would escape the cache directory.
@@ -66,9 +71,9 @@ class CacheRepository:
         cache file), so it is checked to stay inside ``self.directory`` before
         being used.
         """
-        base = self.directory.resolve()
-        resolved = path.resolve()
-        if resolved != base and base not in resolved.parents:
+        base = os.path.realpath(self.directory)
+        candidate = os.path.realpath(path)
+        if os.path.commonpath([base, candidate]) != base:
             raise ValueError(f"Refusing to use a path outside the cache directory: {path}")
         return path
 
@@ -184,9 +189,7 @@ class CacheRepository:
             return None
 
         name = metadata.get("original_name") or f"{path.stem}{SUFFIX}"
-        sha256 = _safe_component(
-            metadata.get("hash") or path.stem, "legacy hash"
-        )
+        sha256 = _safe_name(metadata.get("hash") or path.stem, "legacy hash")
         target = self.path_for(name)
 
         if target.is_file():
@@ -210,22 +213,25 @@ class CacheRepository:
         return entry
 
     def _park_legacy(self, path: Path, sha256: str) -> None:
-        digest = _safe_component(sha256, "legacy hash")
+        digest = _safe_name(sha256, "legacy hash")
         parked = self._confined(self.history_dir / LEGACY_DIRNAME / f"{digest}{_LEGACY_SUFFIX}")
         parked.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(path), str(parked))
 
     def _write_entry(self, entry: CacheEntry, content: str) -> None:
-        self._confined(entry.path)
-        entry.path.parent.mkdir(parents=True, exist_ok=True)
+        # ``entry.path`` may come from untrusted input (a file name or a legacy
+        # front-matter field); re-validate it so the write cannot escape the
+        # cache directory, and only ever write to the confined path.
+        target = self._confined(entry.path)
+        target.parent.mkdir(parents=True, exist_ok=True)
         document = render(entry.to_front_matter()) + _normalise_body(content)
-        temporary = entry.path.with_name(f"{entry.path.name}.tmp")
+        temporary = target.with_name(f"{target.name}.tmp")
         temporary.write_text(document, encoding="utf-8")
-        os.replace(temporary, entry.path)
+        os.replace(temporary, target)
 
     def _unique_history_path(self, entry: CacheEntry) -> Path:
         stem = (
-            f"{_safe_component(entry.source, 'cache source name')}"
+            f"{_safe_name(entry.source, 'cache source name')}"
             f".{entry.short_hash}.{timestamp_for_filename(entry.processed_at)}"
         )
         candidate = self._confined(self.history_dir / f"{stem}{SUFFIX}")
@@ -244,15 +250,20 @@ class CacheRepository:
             )
 
 
-def _safe_component(value: str, label: str) -> str:
-    """Reject values that are not a single, plain path component.
+def _safe_name(value: str, label: str = "source file name") -> str:
+    """Return ``value`` confined to a single, plain file name.
 
-    Guards against path traversal: a value like ``../../etc/passwd`` or an
-    absolute path is not a plain name and is rejected.
+    Path injection happens when untrusted data is used to build a path without
+    validation, so the value is reduced to its final component first
+    (``../../etc/passwd`` becomes ``passwd``) and rejected outright when nothing
+    usable is left (``""``, ``"."``, ``".."`` or a value that only held
+    separators). Callers combine the result with a known-safe base directory and
+    confine the outcome with :meth:`CacheRepository._confined`.
     """
-    if not value or value in {".", ".."} or Path(value).name != value:
+    name = os.path.basename(value)
+    if name in {"", ".", ".."}:
         raise ValueError(f"Invalid {label}: {value!r}")
-    return value
+    return name
 
 
 def _normalise_body(content: str) -> str:
