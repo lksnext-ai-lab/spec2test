@@ -16,6 +16,6 @@ COPY ./src /app/src
 
 ENV PYTHONPATH=/app/src
 
-EXPOSE 8003
+EXPOSE 8000
 
-CMD ["python3", "-m", "uvicorn", "src.main:mcp.streamable_http_app", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["python", "/app/src/main.py"]
