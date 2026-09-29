@@ -30,8 +30,8 @@ extracting the information a Gherkin generator needs.
    resolved against the folder holding `projects.json`; `inputs` defaults to
    `<name>/inputs`, and `preprocessed`/`cache` to `.spec2test-data/<name>/…`.
 
-2. Generate the Compose override that mounts every project into `input-processor` and
-   `filesystem-mcp`, then start the stack:
+2. Generate the Compose override that mounts every project into `input-processor`,
+   then start the stack:
 
    ```bash
    python scripts/sync_projects.py
