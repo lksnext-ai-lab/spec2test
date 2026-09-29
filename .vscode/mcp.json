@@ -2,7 +2,10 @@
 	"servers": {
 		"input-processor": {
 			"url": "http://localhost:8003/mcp",
-			"type": "http"
+			"type": "http",
+			"headers": {
+				"X-Spec2Test-Project": "shop-app"
+			}
 		},
 		"web-crawler": {
 			"url": "http://localhost:8000/mcp",

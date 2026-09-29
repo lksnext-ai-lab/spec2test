@@ -6,3 +6,9 @@ node_modules/
 dist/
 build/
 .venv/
+.pytest_cache/
+
+# Per-machine project configuration and the compose override generated from it.
+/projects.json
+/docker-compose.override.yaml
+/.spec2test-data/

@@ -13,7 +13,14 @@ Node.js server implementing Model Context Protocol (MCP) for filesystem operatio
 The server accepts the port followed by one or more allowed directories as command-line
 arguments. Every filesystem operation is restricted to those directories. In the root
 Compose setup the service listens on container port `8000`, is published as host port
-`8002`, and allows `/app/inputs` and `/app/inputs/.cache`.
+`8002`, and is started as `node /app/dist/index.js 8000 /projects`, so `/projects` is the
+whole sandbox.
+
+The project folders are mounted into `/projects/<name>/{inputs,preprocessed,cache}` by
+`docker-compose.override.yaml`, which `python scripts/sync_projects.py` generates from
+`projects.json`. Inputs are mounted read-only; the cache and preprocessed folders are
+writable, so an agent can read its inputs and hand a project its own scratch space
+without seeing any other project's files.
 
 ## API
 

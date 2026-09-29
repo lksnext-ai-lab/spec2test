@@ -27,12 +27,11 @@ services:
       - .env
     ports:
       - "8002:8000"
-    volumes:
-      - ${INPUTS_DIR}:/app/inputs
-      - ${INPUTS_CACHE_DIR}:/app/inputs/.cache
+    # The project folders are mounted by docker-compose.override.yaml, which
+    # 'python scripts/sync_projects.py' generates from projects.json.
     environment:
       - PYTHONUNBUFFERED=1
-    command: ["node", "/app/dist/index.js", "8000", "/app/inputs", "/app/inputs/.cache"]
+    command: ["node", "/app/dist/index.js", "8000", "/projects"]
     networks:
       - spec2test-network
       
@@ -45,10 +44,10 @@ services:
       - .env
     ports:
       - "8003:8000"
+    # Project folders come from docker-compose.override.yaml (see
+    # 'python scripts/sync_projects.py').
     volumes:
       - ./input-processor/src:/app/src
-      - ${INPUTS_DIR}:/app/inputs
-      - ${INPUTS_CACHE_DIR}:/app/inputs/.cache
     environment:
       - PYTHONUNBUFFERED=1
       - HF_HOME=/root/.cache/huggingface

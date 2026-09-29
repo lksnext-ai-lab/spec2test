@@ -1,0 +1,19 @@
+{
+  "defaults": {
+    "llm": { "provider": "google_genai", "model": "gemini-2.0-flash" },
+    "vision": { "provider": "google_genai", "model": "gemini-2.0-flash" }
+  },
+  "projects": [
+    {
+      "name": "shop-app",
+      "inputs": "/absolute/path/to/shop-app/specs",
+      "preprocessed": "/absolute/path/to/spec2test-data/shop-app/preprocessed",
+      "cache": "/absolute/path/to/spec2test-data/shop-app/cache",
+      "llm": { "provider": "deepseek", "model": "deepseek-v4-flash" }
+    },
+    {
+      "name": "admin-portal",
+      "inputs": "/absolute/path/to/admin-portal/specs"
+    }
+  ]
+}

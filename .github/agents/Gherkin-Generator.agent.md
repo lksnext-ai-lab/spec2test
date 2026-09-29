@@ -49,18 +49,29 @@ Before starting the generation process, ask the user for the following informati
 
 Use the `input-processor` MCP to analyze provided input files (videos, PDFs, etc.):
 
-1. Call `process_files` to trigger analysis of all available files
-2. Call `list_processed_files` to get the list of processed files — this returns only the name and hash of each file
-3. **For each file, one at a time:**
-   - Call `get_processed_content` with that file's hash
+1. Call `current_project` to confirm which project this session is working on — each MCP
+   server entry carries an `X-Spec2Test-Project` header that selects one project's
+   inputs and cache, so if the name is not the one you expect, ask the user to add a
+   correct entry to their MCP configuration instead of continuing.
+2. Call `process_files` to trigger analysis of all available files. Every file comes back
+   with a `status`:
+   - `new`, `cached`, `updated` or `renamed`: the file is available, now or already.
+   - `error`: that one file could not be processed; report it and carry on with the rest.
+   - `orphaned`: cached content whose source file is gone from the inputs folder. It is
+     still readable — mention it to the user, but do not count it as an input file.
+3. Call `list_processed_files` to get the list of processed files — this returns the
+   name, the content hash and the processing time of each file
+4. **For each file, one at a time:**
+   - Call `get_processed_content` with that file's **name** (the hash is accepted as a
+     fallback, but names are what the user sees on disk)
    - Fully ingest and analyze the content of that single document before proceeding to the next
    - Extract and retain in working memory:
      - User stories and requirements
      - User workflows and interactions
      - Business rules and acceptance criteria
      - UI components and navigation flows
-   - Only after finishing analysis of the current document, move on to the next hash. If you deem it convenient for not losing context, you can go writing the Gherkin files while you process the remaining documents, but remember to return to the remaining documents and process them fully, do not skip any document.
-4. **All files are compulsory** — do not skip any hash returned by `list_processed_files`
+   - Only after finishing analysis of the current document, move on to the next one. If you deem it convenient for not losing context, you can go writing the Gherkin files while you process the remaining documents, but remember to return to the remaining documents and process them fully, do not skip any document.
+5. **All files are compulsory** — do not skip any name returned by `list_processed_files`
 
 ### Step 2: Delegate Web Crawling to the Web-Crawler Agent
 
