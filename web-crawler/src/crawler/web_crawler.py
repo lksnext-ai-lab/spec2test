@@ -1,4 +1,3 @@
-import asyncio
 from collections import deque
 from crawl4ai import AsyncWebCrawler
 from crawl4ai.async_configs import BrowserConfig, CrawlerRunConfig
@@ -94,9 +93,6 @@ def get_xpath(element):
         if current.get('id'):
             # Return xpath with id but continue to include parent path for more precision
             id_path = f"//*[@id='{current['id']}']"
-            # Find position among siblings of same type
-            siblings = current.find_previous_siblings(current.name)
-            position = len(siblings) + 1
             
             # Insert remaining components after the id-based element
             if components:
@@ -239,7 +235,7 @@ def extract_internal_links(html: str, page_url: str, base_host: str) -> list[str
 async def crawl_pages(
     crawler: AsyncWebCrawler,
     start_url: str,
-    use_DFS: bool,
+    use_dfs: bool,
     max_depth: int,
     max_pages: int,
     session_id: str | None,
@@ -265,7 +261,7 @@ async def crawl_pages(
     results = []
 
     while queue and len(results) < max_pages:
-        current_url, depth = queue.pop() if use_DFS else queue.popleft()
+        current_url, depth = queue.pop() if use_dfs else queue.popleft()
         if current_url in visited:
             continue
         visited.add(current_url)
@@ -290,7 +286,7 @@ async def crawl_pages(
     return results
 
 
-async def web_crawler(url: str, use_DFS: bool, max_depth: int, max_pages: int, use_auth: bool = True) -> str:
+async def web_crawler(url: str, use_dfs: bool, max_depth: int, max_pages: int, use_auth: bool = True) -> str:
     from crawl4ai.cache_context import CacheMode
 
     # Convert local hosts to host.docker.internal if running in Docker
@@ -418,7 +414,7 @@ async def web_crawler(url: str, use_DFS: bool, max_depth: int, max_pages: int, u
             results = await crawl_pages(
                 crawler=crawler,
                 start_url=url,
-                use_DFS=use_DFS,
+                use_dfs=use_dfs,
                 max_depth=max_depth,
                 max_pages=max_pages,
                 session_id=session_id,
@@ -434,7 +430,7 @@ async def web_crawler(url: str, use_DFS: bool, max_depth: int, max_pages: int, u
                     max_depth=max_depth,
                     include_external=False,
                     max_pages=max_pages,
-                ) if use_DFS else BFSDeepCrawlStrategy(
+                ) if use_dfs else BFSDeepCrawlStrategy(
                     max_depth=max_depth,
                     include_external=False,
                     max_pages=max_pages,
@@ -543,7 +539,3 @@ async def web_crawler(url: str, use_DFS: bool, max_depth: int, max_pages: int, u
                 output_lines.append(f"Error processing HTML: {str(e)}")
 
     return "\n".join(output_lines)
-
-if __name__ == "__main__":
-    result = asyncio.run(web_crawler())
-    print(result)

@@ -10,4 +10,7 @@ license = "PolyForm-Noncommercial-1.0.0"
 python = "^3.12"
 uvicorn = "^0.20.0"
 mcp = {extras = ["cli"], version = "^1.9.1"}
-crawl4ai = "^0.6.3"
+crawl4ai = "0.9.4"
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=8.0"

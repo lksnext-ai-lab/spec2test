@@ -1,13 +1,12 @@
 # Spec2Test - Gherkin Generator Agent Workflow
 <img src="./Spec2Test.png" alt="Spec2Test Logo" width="180" />
 
-This repository contains a small stack of MCP (Model Context Protocol) services used to support Gherkin feature generation in a VS Code Copilot workflow. It combines structured crawling, input analysis, and safe filesystem access to feed downstream test generation.
+This repository contains a small stack of MCP (Model Context Protocol) services used to support Gherkin feature generation in a VS Code Copilot workflow. It combines structured crawling and input analysis to feed downstream test generation.
 
 ## What is included
 
 - **input-processor**: MCP server that analyzes MP4, PDF, Markdown, and text files, then caches structured summaries for test generation.
 - **web-crawler**: MCP server that crawls a site to extract links, UI elements, and page content in markdown.
-- **filesystem-mcp**: MCP server that exposes safe, sandboxed file operations within allowed directories only.
 - `.claude/skills/gherkin-multiple-v5/` — The Claude Skill that computes all maintainability metrics and produces the Excel workbooks and JSON state files to help assess the maintainability quality of the generated Gherkin. The paper regarding the measurement is waiting to be published. The metric descriptions are in the document .claude/skills/gherkin-multiple-v5/Feature Maintainability Metrics.md.
 
 ## Quick start (Docker)
@@ -29,7 +28,7 @@ This repository contains a small stack of MCP (Model Context Protocol) services 
 
 	`projects.json` is yours and stays out of version control. Each project gets its own
 	inputs folder plus its own cache and preprocessed folders, all mounted into
-	`input-processor` and `filesystem-mcp` under `/projects/<name>/…`.
+	`input-processor` under `/projects/<name>/…`.
 3. Optional GPU support:
 	```bash
 	docker compose -f docker-compose.yaml -f docker-compose.gpu.yaml up -d --build
@@ -38,7 +37,6 @@ This repository contains a small stack of MCP (Model Context Protocol) services 
 ## Services and ports
 
 - `web-crawler`: `http://localhost:8000`
-- `filesystem-mcp`: `http://localhost:8002`
 - `input-processor`: `http://localhost:8003`
 
 All MCP services expose their endpoint at `/mcp`. The ports above are host ports; the
@@ -63,7 +61,6 @@ resolved to the project you meant.
 
 - Input processing: see `input-processor/README.md`
 - Web crawling: see `web-crawler/README.md`
-- Filesystem MCP: see `filesystem-mcp/README.md`
 
 The Compose file mounts the `src` directories of the Python services for local
 development. For a production-like image, remove those source mounts and rebuild the
@@ -76,7 +73,6 @@ network when used outside a local development environment.
 ## Repository layout
 
 ```
-filesystem-mcp/        # Sandboxed filesystem read/write for agents
 input-processor/       # File analysis for MP4, PDF, Markdown, and text inputs
 web-crawler/           # Site crawler that extracts links, UI elements, and content
 scripts/               # sync_projects.py: projects.json -> Compose override
@@ -92,7 +88,7 @@ or `eneko.pizarro@ehu.eus`.
 
 # LICENSE:
 The code developed for this project is licensed under the PolyForm Noncommercial
-License 1.0.0. The `filesystem-mcp` component remains separately licensed under the MIT License.
+License 1.0.0.
 
 You may use, study, modify, and share this software for non-commercial purposes,
 including personal, educational, research, and evaluation use.

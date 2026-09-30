@@ -33,6 +33,8 @@ _log = logging.getLogger(__name__)
 
 HISTORY_DIRNAME = ".history"
 LEGACY_DIRNAME = "legacy"
+SOURCE_LABEL = "source file name"
+DIGEST_LABEL = "content digest"
 _LEGACY_SUFFIX = ".txt"
 _LEGACY_BANNER = "PROCESSED CONTENT:"
 
@@ -55,9 +57,7 @@ class CacheRepository:
 
     def path_for(self, source_name: str) -> Path:
         """Path of the cache file belonging to ``source_name``."""
-        if not source_name or Path(source_name).name != source_name:
-            raise ValueError(f"Invalid source file name: {source_name!r}")
-        return self.directory / f"{source_name}{SUFFIX}"
+        return confined_path(self.directory, f"{safe_component(source_name)}{SUFFIX}")
 
     def index(self) -> CacheIndex:
         """Scan the cache directory and index every readable entry."""
@@ -169,8 +169,8 @@ class CacheRepository:
         if metadata is None:
             return None
 
-        name = metadata.get("original_name") or f"{path.stem}{SUFFIX}"
-        sha256 = metadata.get("hash") or path.stem
+        name = safe_component(metadata.get("original_name") or f"{path.stem}{SUFFIX}")
+        sha256 = safe_component(metadata.get("hash") or path.stem, DIGEST_LABEL)
         target = self.path_for(name)
 
         if target.is_file():
@@ -194,24 +194,30 @@ class CacheRepository:
         return entry
 
     def _park_legacy(self, path: Path, sha256: str) -> None:
-        parked = self.history_dir / LEGACY_DIRNAME / f"{sha256}{_LEGACY_SUFFIX}"
+        digest = safe_component(sha256, DIGEST_LABEL)
+        parked = confined_path(self.history_dir, LEGACY_DIRNAME, f"{digest}{_LEGACY_SUFFIX}")
         parked.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(path), str(parked))
 
     def _write_entry(self, entry: CacheEntry, content: str) -> None:
-        entry.path.parent.mkdir(parents=True, exist_ok=True)
+        # Rebuild the target from the cache directory and the validated source
+        # name, so a crafted entry path cannot redirect the write elsewhere.
+        target = self.path_for(entry.source)
+        target.parent.mkdir(parents=True, exist_ok=True)
         document = render(entry.to_front_matter()) + _normalise_body(content)
-        temporary = entry.path.with_name(f"{entry.path.name}.tmp")
+        temporary = target.with_name(f"{target.name}.tmp")
         temporary.write_text(document, encoding="utf-8")
-        os.replace(temporary, entry.path)
+        os.replace(temporary, target)
 
     def _unique_history_path(self, entry: CacheEntry) -> Path:
-        stem = f"{entry.source}.{entry.short_hash}.{timestamp_for_filename(entry.processed_at)}"
-        candidate = self.history_dir / f"{stem}{SUFFIX}"
+        source = safe_component(entry.source)
+        digest = safe_component(entry.short_hash, DIGEST_LABEL)
+        stem = f"{source}.{digest}.{timestamp_for_filename(entry.processed_at)}"
+        candidate = confined_path(self.history_dir, f"{stem}{SUFFIX}")
 
         counter = 1
         while candidate.exists():
-            candidate = self.history_dir / f"{stem}-{counter}{SUFFIX}"
+            candidate = confined_path(self.history_dir, f"{stem}-{counter}{SUFFIX}")
             counter += 1
         return candidate
 
@@ -221,6 +227,36 @@ class CacheRepository:
                 "Cache directory %s contains duplicate source names; the newest file wins.",
                 self.directory,
             )
+
+
+def safe_component(name: str, what: str = SOURCE_LABEL) -> str:
+    """Return ``name`` when it is a single, safe path component.
+
+    ``os.path.basename`` normalises the value — it is the sanitiser static
+    analysis recognises for path-injection sinks — and the remaining checks
+    reject anything that could still escape the directory the component is
+    joined to: ``.``, ``..``, path separators, NUL and control characters.
+    """
+    candidate = os.path.basename(name)
+    unsafe = (
+        not candidate
+        or candidate != name
+        or candidate in {".", ".."}
+        or any(char in candidate for char in ("/", "\\", "\x00"))
+        or any(ord(char) < 32 for char in candidate)
+    )
+    if unsafe:
+        raise ValueError(f"Invalid {what}: {name!r}")
+    return candidate
+
+
+def confined_path(root: Path, *parts: str) -> Path:
+    """Join already-validated ``parts`` onto ``root``, refusing to escape it."""
+    base = Path(root).resolve()
+    candidate = Path(root).joinpath(*parts)
+    if not candidate.resolve().is_relative_to(base):
+        raise ValueError(f"Refusing path outside {root}: {candidate}")
+    return candidate
 
 
 def _normalise_body(content: str) -> str:
