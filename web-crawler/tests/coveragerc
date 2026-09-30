@@ -1,0 +1,16 @@
+# Coverage settings used to regenerate the checked-in report
+# (web-crawler/tests/coverage.xml).
+#
+# pytest-cov is pointed at this file explicitly so that the repository-root
+# .coveragerc — which configures the input-processor analysis — is not picked
+# up: the two reports must cover disjoint files.
+#
+#   python -m pytest web-crawler/tests \
+#       --cov=web-crawler/src \
+#       --cov-config=web-crawler/tests/coveragerc \
+#       --cov-report=xml:web-crawler/tests/coverage.xml
+#
+# relative_files keeps the paths in the XML relative to the repository root
+# (web-crawler/src/...) so SonarQube can match them against its file keys.
+[run]
+relative_files = True
