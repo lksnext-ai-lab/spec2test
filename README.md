@@ -57,6 +57,13 @@ with the example project name: change it to the project you are working on, or a
 server entry per project. Call the `current_project` tool to check that a session
 resolved to the project you meant.
 
+## VS Code extension
+
+`vscode-extension/` is a sidebar for the input-processor: it creates projects, copies
+dropped files into them, processes them with live progress, lets you pick the models and
+API keys, opens the original / pre-processed / cached file from one card, and starts and
+stops the Docker container for you. See [`vscode-extension/README.md`](vscode-extension/README.md).
+
 ## Development
 
 - Input processing: see `input-processor/README.md`
@@ -75,6 +82,7 @@ network when used outside a local development environment.
 ```
 input-processor/       # File analysis for MP4, PDF, Markdown, and text inputs
 web-crawler/           # Site crawler that extracts links, UI elements, and content
+vscode-extension/      # VS Code sidebar to manage projects, files and processing
 scripts/               # sync_projects.py: projects.json -> Compose override
 projects.example.json  # Starting point for your own projects.json (gitignored)
 docker-compose.yaml    # Core services

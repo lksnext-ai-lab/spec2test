@@ -178,6 +178,30 @@ file, plus one per orphaned cache entry:
 
 Files that fail are reported individually — one unreadable PDF does not fail the run.
 
+While it runs, the server streams MCP progress notifications and log messages
+(`File 2/5: spec.pdf`, `Analysing video segment 3/8`, `Describing image 4/12`…), so a
+client that supports them can show what is happening. Cancelling the request stops the
+work at the next checkpoint (between files, video segments or images).
+
+### `process_file`
+
+Processes one file: `process_file(file_name, force=false)`. Behaves like `process_files`
+for that file and streams the same progress. With `force=true` the file is processed
+again even when the cache is up to date; the previous result is archived to
+`cache/.history`. Returns the same object as one entry of `process_files`.
+
+### `list_input_files`
+
+Lists the input files with their cache state and **does not process anything**:
+`name`, `format`, `size`, `sha256` and `cache_status` (`cached`, `stale`, `renamed` or
+`new`), plus `processed_at` when a result exists.
+
+### `list_providers`
+
+Lists the configurable providers with their curated models and capabilities, and whether
+each provider's API key variable is set (`api_key_set`; the key itself is never returned).
+The data comes from `providers/native.json` and `providers/catalog.json`.
+
 ### `list_processed_files`
 
 Lists everything with cached content: `name`, `sha256` and `processed_at`.

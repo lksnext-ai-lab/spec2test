@@ -1,0 +1,185 @@
+{
+  "name": "spec2test",
+  "displayName": "Spec2Test",
+  "description": "Manage Spec2Test projects, drop in specs and recordings, process them with the input-processor and review the results without leaving VS Code.",
+  "version": "0.1.0",
+  "publisher": "lksnext-ai-lab",
+  "license": "UNLICENSED",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lksnext-ai-lab/spec2test.git",
+    "directory": "vscode-extension"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Testing",
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "workspaceContains:**/*.feature"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "spec2test",
+          "title": "Spec2Test",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "spec2test": [
+        {
+          "id": "spec2test.dropZone",
+          "name": "Drop files",
+          "type": "tree",
+          "initialSize": 1
+        },
+        {
+          "id": "spec2test.main",
+          "name": "Spec2Test",
+          "type": "webview",
+          "initialSize": 9
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "spec2test.focus",
+        "title": "Spec2Test: Open sidebar"
+      },
+      {
+        "command": "spec2test.startService",
+        "title": "Spec2Test: Start the input-processor"
+      },
+      {
+        "command": "spec2test.stopService",
+        "title": "Spec2Test: Stop the input-processor"
+      },
+      {
+        "command": "spec2test.showLogs",
+        "title": "Spec2Test: Show input-processor logs"
+      },
+      {
+        "command": "spec2test.addFiles",
+        "title": "Spec2Test: Add files to the project\u2026"
+      },
+      {
+        "command": "spec2test.chooseRepo",
+        "title": "Spec2Test: Choose the spec2test repository folder\u2026"
+      },
+      {
+        "command": "spec2test.openWalkthrough",
+        "title": "Spec2Test: Getting started"
+      },
+      {
+        "command": "spec2test.revealInput",
+        "title": "Spec2Test: Show input in the sidebar"
+      }
+    ],
+    "configuration": {
+      "title": "Spec2Test",
+      "properties": {
+        "spec2test.repoPath": {
+          "type": "string",
+          "default": "",
+          "description": "Folder of the spec2test repository (the one with docker-compose.yaml). Leave empty to detect it from the open workspace."
+        },
+        "spec2test.port": {
+          "type": "number",
+          "default": 8003,
+          "description": "Host port of the input-processor (docker-compose maps 8003 to the container's 8000)."
+        },
+        "spec2test.pythonPath": {
+          "type": "string",
+          "default": "python3",
+          "description": "Python used to run scripts/sync_projects.py."
+        },
+        "spec2test.autoStartService": {
+          "type": "boolean",
+          "default": false,
+          "description": "Start the input-processor container automatically when the sidebar opens."
+        }
+      }
+    },
+    "walkthroughs": [
+      {
+        "id": "spec2test.gettingStarted",
+        "title": "Get started with Spec2Test",
+        "description": "From an empty machine to your first processed spec.",
+        "steps": [
+          {
+            "id": "docker",
+            "title": "Install and start Docker",
+            "description": "Spec2Test runs the input-processor in Docker. The sidebar header tells you what is missing and offers the next step.\n[Open Spec2Test](command:spec2test.focus)",
+            "media": {
+              "markdown": "media/walkthrough/docker.md"
+            }
+          },
+          {
+            "id": "repo",
+            "title": "Choose the spec2test folder",
+            "description": "Point the extension at your clone of the spec2test repository.\n[Choose folder](command:spec2test.chooseRepo)",
+            "media": {
+              "markdown": "media/walkthrough/repo.md"
+            }
+          },
+          {
+            "id": "keys",
+            "title": "Add an API key",
+            "description": "Open the Environment section and paste the key of the LLM provider you want to use. Keys are kept in your OS keychain.",
+            "media": {
+              "markdown": "media/walkthrough/keys.md"
+            }
+          },
+          {
+            "id": "project",
+            "title": "Create a project",
+            "description": "A project is a folder of inputs plus its own cache and pre-processed outputs.",
+            "media": {
+              "markdown": "media/walkthrough/project.md"
+            }
+          },
+          {
+            "id": "process",
+            "title": "Drop files and process them",
+            "description": "Drop .mp4, .pdf, .md or .txt files into the drop zone, then press Process. Progress is live on every file card.",
+            "media": {
+              "markdown": "media/walkthrough/process.md"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "lint": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p webview-ui/tsconfig.json",
+    "test": "vitest run",
+    "package": "npm run build && vsce package --no-dependencies",
+    "vscode:prepublish": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@types/vscode": "^1.90.0",
+    "@vitest/coverage-v8": "^2.1.9",
+    "@vscode/vsce": "^3.0.0",
+    "esbuild": "^0.24.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.0"
+  }
+}
