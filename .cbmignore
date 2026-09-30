@@ -1,0 +1,31 @@
+# CI/CD and tooling
+.gitlab-ci.yml
+.vscode/
+.idea/
+# Generated or third-party code
+**/generated/
+**/gen/
+**/vendor/
+**/third_party/
+**/*.min.js
+**/*.pb.go
+**/*_pb2.py
+# Build outputs
+**/target/
+**/build/
+**/dist/
+**/bin/
+**/obj/
+# Static resources
+**/*.svg
+**/*.png
+**/assets/
+**/static/
+# Repository documentation
+docs/
+*.md
+# Include all content in agent and project configuration directories.
+!/.claude/
+!/.claude/**
+!/.github/
+!/.github/**
