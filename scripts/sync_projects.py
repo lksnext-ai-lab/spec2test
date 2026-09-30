@@ -39,7 +39,7 @@ PROJECTS_ROOT = "/projects"
 CONFIG_MOUNT = "/config/projects.json"
 DATA_DIRNAME = ".spec2test-data"
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
-SERVICES = ("input-processor", "filesystem-mcp")
+SERVICES = ("input-processor",)
 
 INPUTS = "inputs"
 PREPROCESSED = "preprocessed"

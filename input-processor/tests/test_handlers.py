@@ -17,7 +17,7 @@ from handlers.registry import HandlerRegistry, UnsupportedFormatError
 from handlers.text_handler import TextHandler
 from handlers.video_handler import VideoHandler
 from preprocessing.markdown_images import MarkdownImageEnricher, resolve_image_path
-from preprocessing.pdf_text import extract_text_with_pypdf2
+from preprocessing.pdf_text import extract_text_with_pypdf
 from support import StubChatModel, source_for
 
 
@@ -181,7 +181,7 @@ def test_pdf_handler_without_converter_uses_the_text_layer(
     path = tmp_path / "specs.pdf"
     path.write_bytes(b"%PDF-1.4")
     monkeypatch.setattr(
-        "handlers.pdf_handler.extract_text_with_pypdf2", lambda pdf_path: "plain text layer"
+        "handlers.pdf_handler.extract_text_with_pypdf", lambda pdf_path: "plain text layer"
     )
 
     PdfHandler(DocumentSummarizer(chat_model)).handle(source_for(path), HandlerContext())
@@ -194,7 +194,7 @@ def test_pdf_handler_reports_an_empty_pdf(
 ) -> None:
     path = tmp_path / "scan.pdf"
     path.write_bytes(b"%PDF-1.4")
-    monkeypatch.setattr("handlers.pdf_handler.extract_text_with_pypdf2", lambda pdf_path: "  ")
+    monkeypatch.setattr("handlers.pdf_handler.extract_text_with_pypdf", lambda pdf_path: "  ")
 
     result = PdfHandler(DocumentSummarizer(chat_model)).handle(source_for(path), HandlerContext())
 
@@ -202,16 +202,16 @@ def test_pdf_handler_reports_an_empty_pdf(
     assert chat_model.call_count == 0
 
 
-def test_pypdf2_guidance_when_the_package_is_missing(
+def test_pypdf_guidance_when_the_package_is_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     path = tmp_path / "specs.pdf"
     path.write_bytes(b"%PDF-1.4")
     # An import of ``None`` from sys.modules raises ImportError, installed or not.
-    monkeypatch.setitem(sys.modules, "PyPDF2", None)
+    monkeypatch.setitem(sys.modules, "pypdf", None)
 
-    with pytest.raises(RuntimeError, match="PyPDF2"):
-        extract_text_with_pypdf2(path)
+    with pytest.raises(RuntimeError, match="pypdf"):
+        extract_text_with_pypdf(path)
 
 
 def test_summarizer_rejects_empty_content(chat_model: StubChatModel) -> None:

@@ -15,7 +15,7 @@ from typing import Callable, Optional
 
 from cache.entry import timestamp_for_filename
 from cache.reconcile import CacheReconciler, CacheStatus
-from cache.repository import CacheRepository
+from cache.repository import CacheRepository, confined_path, safe_component
 from cache.source import SourceFile
 
 _log = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ class PreprocessedStore:
 
     def images_dir(self, source: SourceFile) -> Path:
         """Directory holding the images extracted from ``source``."""
-        return self.directory / f"{source.name}{IMAGES_SUFFIX}"
+        return confined_path(self.directory, f"{safe_component(source.name)}{IMAGES_SUFFIX}")
 
     def ensure(
         self,
@@ -90,8 +90,10 @@ class PreprocessedStore:
 
     def _move_images(self, old_name: str, new_name: str) -> None:
         """Follow a rename, so the layout keeps one image folder per source."""
-        source_dir = self.directory / f"{old_name}{IMAGES_SUFFIX}"
-        target = self.directory / f"{new_name}{IMAGES_SUFFIX}"
+        source_dir = confined_path(
+            self.directory, f"{safe_component(old_name)}{IMAGES_SUFFIX}"
+        )
+        target = confined_path(self.directory, f"{safe_component(new_name)}{IMAGES_SUFFIX}")
         if source_dir.is_dir() and not target.exists():
             shutil.move(str(source_dir), str(target))
             _log.info("Moved images of %s to %s", old_name, target.name)
@@ -103,22 +105,25 @@ class PreprocessedStore:
     def migrate_legacy(self) -> None:
         """Bring legacy ``<sha256>`` artefacts over to the name-based layout."""
         for entry in self.repository.migrate_legacy():
-            legacy_images = self.directory / f"{entry.sha256}{IMAGES_SUFFIX}"
+            digest = safe_component(entry.sha256, "content digest")
+            legacy_images = confined_path(self.directory, f"{digest}{IMAGES_SUFFIX}")
             if legacy_images.is_dir():
-                target = self.directory / f"{entry.source}{IMAGES_SUFFIX}"
+                target = confined_path(
+                    self.directory, f"{safe_component(entry.source)}{IMAGES_SUFFIX}"
+                )
                 if not target.exists():
                     shutil.move(str(legacy_images), str(target))
                     _log.info("Moved legacy image folder for %s to %s", entry.source, target.name)
 
     def _archive_images(self, source_name: str, short_hash: str, processed_at: str) -> None:
-        images = self.directory / f"{source_name}{IMAGES_SUFFIX}"
+        source = safe_component(source_name)
+        digest = safe_component(short_hash, "content digest")
+        images = confined_path(self.directory, f"{source}{IMAGES_SUFFIX}")
         if not images.is_dir():
             return
 
-        target = (
-            self.repository.history_dir
-            / f"{source_name}{IMAGES_SUFFIX}.{short_hash}.{timestamp_for_filename(processed_at)}"
-        )
+        stem = f"{source}{IMAGES_SUFFIX}.{digest}.{timestamp_for_filename(processed_at)}"
+        target = confined_path(self.repository.history_dir, stem)
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(images), str(target))
         _log.info("Archived previous images of %s at %s", source_name, target.name)

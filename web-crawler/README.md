@@ -88,7 +88,7 @@ import asyncio
 # Crawl a website with custom parameters
 result = await web_crawler(
     url="https://example.com",
-   use_DFS=False,  # Use BFS strategy (internal Python function name)
+   use_dfs=False,  # Use BFS strategy
     max_depth=3,
     max_pages=100
 )
@@ -202,6 +202,25 @@ The crawler provides intelligent error handling for common issues:
 - Only crawl applications and environments for which you have authorization.
 - Keep the service bound to a trusted local or private network. The MCP endpoint has no
    application-level authentication configured by default.
+
+## Tests
+
+The suite needs the pinned `crawl4ai` and `pytest`, but no browser and no network:
+
+```bash
+cd web-crawler
+python -m pytest tests -q
+```
+
+SonarQube reads a checked-in coverage report, `tests/coverage.xml`. It is a snapshot, so
+regenerate it whenever `src/` changes (run from the repository root, on Python 3.12):
+
+```bash
+python -m pytest web-crawler/tests \
+    --cov=web-crawler/src \
+    --cov-config=web-crawler/tests/coveragerc \
+    --cov-report=xml:web-crawler/tests/coverage.xml
+```
 
 ## Support
 

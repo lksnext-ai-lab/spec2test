@@ -150,7 +150,7 @@ async def process_files(ctx: Context) -> str:
 
     try:
         report = await _run_blocking(work)
-    except Exception as exc:  # noqa: BLE001 - report, never crash the tool
+    except Exception as exc:  # noqa: BLE001 - report the failure instead of crashing
         _log.exception("process_files failed for project %s", runtime.project.name)
         return _error(f"Processing failed: {exc}")
 
@@ -276,4 +276,4 @@ if __name__ == "__main__":
     # streamable_http_app() is a method returning the Starlette ASGI app, so it
     # has to be called: passing the method itself makes uvicorn treat it as an
     # app factory and fail.
-    uvicorn.run(mcp.streamable_http_app(), host="0.0.0.0", port=8000)
+    uvicorn.run(mcp.streamable_http_app(), host=os.getenv("HOST", "127.0.0.1"), port=8000)

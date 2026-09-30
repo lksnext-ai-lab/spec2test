@@ -45,13 +45,13 @@ class MetadataOnlyAnalyzer(VideoAnalyzer):
             total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
             width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
             height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            timeline = self._sample_timeline(cv2, video, fps)
+            timeline = self._sample_timeline(video, fps)
         finally:
             video.release()
 
         return self._render(video_path, fps, total_frames, width, height, timeline)
 
-    def _sample_timeline(self, cv2, video, fps: float) -> list[str]:
+    def _sample_timeline(self, video, fps: float) -> list[str]:
         """Frame timestamps and resolution changes, one entry per sampled frame."""
         interval = max(int(fps * self._settings.frame_interval_seconds), 1)
         entries: list[str] = []

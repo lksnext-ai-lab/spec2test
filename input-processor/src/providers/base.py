@@ -32,7 +32,7 @@ class Capabilities:
     @classmethod
     def from_names(cls, names: Iterable[str]) -> "Capabilities":
         """Build capabilities from declarative names (e.g. a catalog entry)."""
-        known = {name: False for name in cls._NAMES}
+        known = dict.fromkeys(cls._NAMES, False)
         for raw_name in names:
             name = str(raw_name).strip().lower()
             if name not in known:
