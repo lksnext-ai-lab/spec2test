@@ -1,0 +1,10 @@
+# Coverage configuration for the SonarQube analysis.
+#
+# ``relative_files`` keeps the paths inside coverage.xml relative to the working
+# directory, so that a report generated from the repository root contains entries
+# like ``input-processor/src/cache/repository.py`` — exactly the file keys
+# SonarQube analyses. Run the suite from the repository root.
+[run]
+relative_files = True
+source =
+    input-processor/src
