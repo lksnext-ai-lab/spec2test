@@ -1,5 +1,7 @@
 # Test-only dependencies: the suite runs without API keys and without the heavy
 # runtime packages (OpenCV, PyMuPDF, the provider SDKs) because those are
-# imported lazily. langchain-core comes with the runtime requirements.
+# imported lazily. langchain-core comes with the runtime requirements and is
+# installed explicitly by the build workflow.
 pytest
 pyyaml
+pytest-cov
