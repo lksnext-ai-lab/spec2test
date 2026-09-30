@@ -15,3 +15,7 @@ build/
 
 # Claude files:
 .claude/
+
+# Test coverage artefacts (generated for SonarQube).
+/coverage.xml
+.coverage

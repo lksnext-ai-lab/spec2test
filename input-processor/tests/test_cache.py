@@ -18,7 +18,7 @@ from cache.entry import (
 )
 from cache.index import CacheIndex
 from cache.lookup import CacheLookupError, find, resolve
-from cache.repository import CacheRepository
+from cache.repository import CacheRepository, confined_path, safe_component
 from cache.source import SourceFile
 from support import source_for
 
@@ -145,9 +145,50 @@ def test_cache_files_are_named_after_their_source(cache: CacheRepository, tmp_pa
 
 
 def test_invalid_names_are_refused(cache: CacheRepository) -> None:
-    for name in ("", "../escape.txt", "nested/file.txt"):
+    for name in ("", ".", "..", "../escape.txt", "nested/file.txt", "..\\..\\escape.txt"):
         with pytest.raises(ValueError, match="Invalid source file name"):
             cache.path_for(name)
+
+
+def test_safe_component_accepts_plain_file_names() -> None:
+    for name in ("notes.txt", "login-demo.mp4", "guide over: the app.md", "...md"):
+        assert safe_component(name) == name
+
+
+def test_safe_component_rejects_malicious_components() -> None:
+    for name in (
+        "",
+        ".",
+        "..",
+        "../escape.txt",
+        "nested/file.txt",
+        "..\\..\\escape.txt",
+        "nul\x00byte.txt",
+    ):
+        with pytest.raises(ValueError, match="Invalid source file name"):
+            safe_component(name)
+
+
+def test_confined_path_refuses_to_escape(tmp_path: Path) -> None:
+    root = tmp_path / "cache"
+
+    assert confined_path(root, "notes.txt.md") == root / "notes.txt.md"
+
+    with pytest.raises(ValueError, match="Refusing path outside"):
+        confined_path(root, "..", "escape.md")
+
+
+def test_archiving_refuses_a_traversal_source(cache: CacheRepository) -> None:
+    path = cache.directory / "evil.md"
+    path.write_text(
+        render(entry_for(path, name="../escape.txt").to_front_matter()) + "body\n",
+        encoding="utf-8",
+    )
+    entry = cache.index().find_by_source("../escape.txt")
+
+    assert entry is not None
+    with pytest.raises(ValueError, match="Invalid source file name"):
+        cache.archive(entry)
 
 
 def test_read_by_name_returns_none_when_absent(cache: CacheRepository) -> None:
