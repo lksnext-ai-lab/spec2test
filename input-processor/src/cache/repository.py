@@ -200,9 +200,9 @@ class CacheRepository:
         shutil.move(str(path), str(parked))
 
     def _write_entry(self, entry: CacheEntry, content: str) -> None:
-        # Rebuild the target from the cache directory and the validated file
+        # Rebuild the target from the cache directory and the validated source
         # name, so a crafted entry path cannot redirect the write elsewhere.
-        target = confined_path(self.directory, safe_component(Path(entry.path).name))
+        target = self.path_for(entry.source)
         target.parent.mkdir(parents=True, exist_ok=True)
         document = render(entry.to_front_matter()) + _normalise_body(content)
         temporary = target.with_name(f"{target.name}.tmp")

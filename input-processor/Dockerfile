@@ -15,6 +15,9 @@ RUN apt-get update && apt-get install -y \
 COPY ./src /app/src
 
 ENV PYTHONPATH=/app/src
+# The code defaults to 127.0.0.1; inside a container the server must listen on
+# all interfaces for the published port to reach it.
+ENV HOST=0.0.0.0
 
 EXPOSE 8000
 

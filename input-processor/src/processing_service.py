@@ -207,7 +207,7 @@ class ProcessingService:
         try:
             source = SourceFile.from_path(path)
         except OSError as exc:
-            _log.error("Could not read %s: %s", path, exc)
+            _log.exception("Could not read %s", path)
             return FileResult.unreadable(path, _describe_error(exc))
         return self._process(source, reconciler, context)
 
@@ -231,7 +231,7 @@ class ProcessingService:
                 self.model,
             )
         except Exception as exc:  # noqa: BLE001 - one bad file must not stop the run
-            _log.error("Error processing %s: %s", source.name, exc)
+            _log.exception("Error processing %s", source.name)
             _log.debug("Traceback for %s:\n%s", source.name, traceback.format_exc())
             return FileResult.failure(source, _describe_error(exc))
 
