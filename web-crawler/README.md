@@ -88,7 +88,7 @@ import asyncio
 # Crawl a website with custom parameters
 result = await web_crawler(
     url="https://example.com",
-   use_DFS=False,  # Use BFS strategy (internal Python function name)
+   use_dfs=False,  # Use BFS strategy
     max_depth=3,
     max_pages=100
 )
