@@ -80,6 +80,16 @@ def test_a_project_derives_its_paths_from_its_name(tmp_path: Path) -> None:
     assert project.segments_dir == project.cache / "_segments"
 
 
+def test_keys_only_the_editor_extension_uses_are_ignored(tmp_path: Path) -> None:
+    """The VS Code extension keeps a host-side ``features`` folder in projects.json."""
+    entry = make_project(tmp_path, features="/somewhere/features", futureKey={"a": 1})
+
+    project = Project.from_entry(entry, tmp_path / "projects")
+
+    assert project.name == "alpha"
+    assert project.inputs == tmp_path / "projects" / "alpha" / "inputs"
+
+
 @pytest.mark.parametrize("name", ["", "Upper", "-leading", "with space", "slash/name", "../escape"])
 def test_invalid_project_names_are_refused(tmp_path: Path, name: str) -> None:
     with pytest.raises(ProjectConfigError, match="Invalid project name"):

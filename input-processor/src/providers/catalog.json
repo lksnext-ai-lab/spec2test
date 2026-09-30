@@ -5,25 +5,51 @@
       "base_url": "https://api.deepseek.com/v1",
       "api_key_env": "DEEPSEEK_API_KEY",
       "default_model": "deepseek-v4-flash",
-      "capabilities": ["text"]
+      "capabilities": [
+        "text"
+      ],
+      "models": [
+        "deepseek-v4-flash"
+      ]
     },
     {
       "name": "openrouter",
       "base_url": "https://openrouter.ai/api/v1",
       "api_key_env": "OPENROUTER_API_KEY",
       "default_model": "google/gemini-2.0-flash-001",
-      "capabilities": ["text", "images", "video_inline"],
+      "capabilities": [
+        "text",
+        "images",
+        "video_inline"
+      ],
       "model_capabilities": {
-        "deepseek/deepseek-chat": ["text"],
-        "qwen/qwen2.5-vl-72b-instruct": ["text", "images", "video_inline"]
-      }
+        "deepseek/deepseek-chat": [
+          "text"
+        ],
+        "qwen/qwen2.5-vl-72b-instruct": [
+          "text",
+          "images",
+          "video_inline"
+        ]
+      },
+      "models": [
+        "google/gemini-2.0-flash-001",
+        "qwen/qwen2.5-vl-72b-instruct",
+        "deepseek/deepseek-chat"
+      ]
     },
     {
       "name": "qwen",
       "base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
       "api_key_env": "DASHSCOPE_API_KEY",
       "default_model": "qwen-vl-max",
-      "capabilities": ["text", "images"]
+      "capabilities": [
+        "text",
+        "images"
+      ],
+      "models": [
+        "qwen-vl-max"
+      ]
     }
   ]
 }

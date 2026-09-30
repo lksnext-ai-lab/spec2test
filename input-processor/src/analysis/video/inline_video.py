@@ -12,6 +12,7 @@ from langchain_core.messages import HumanMessage
 
 from analysis.video.base import VideoAnalyzer
 from analysis.video.segmenter import VideoSegmenter, format_mmss, offset_timestamps
+from progress import reporter
 from prompts import render
 from settings import VideoSettings
 from utils.text import to_text
@@ -64,6 +65,7 @@ class InlineVideoAnalyzer(VideoAnalyzer):
         return to_text(self._llm.invoke([message]).content)
 
     def _analyze_segments(self, video_path: Path) -> str:
+        reporter().stage("Splitting video into segments")
         try:
             segments = self._segmenter.split(video_path, self._settings.segment_seconds)
         except Exception as exc:  # noqa: BLE001 - fall back to the whole file
@@ -92,6 +94,7 @@ class InlineVideoAnalyzer(VideoAnalyzer):
                 total=total,
                 offset=format_mmss(offset_seconds),
             )
+            reporter().step(index, total, f"Analysing video segment {index}/{total}")
             _log.info("Processing segment %s/%s: %s", index, total, segment.name)
             summary = self._analyze_inline(segment, prompt)
             if offset_seconds > 0:
@@ -110,5 +113,6 @@ class InlineVideoAnalyzer(VideoAnalyzer):
         if not self._settings.consolidate:
             return merged
 
+        reporter().stage("Consolidating segment summaries")
         message = HumanMessage(content=render("video_consolidation", segments=merged))
         return to_text(self._llm.invoke([message]).content)

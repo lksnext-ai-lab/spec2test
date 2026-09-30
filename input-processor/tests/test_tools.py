@@ -280,3 +280,165 @@ def test_projects_do_not_see_each_others_files(tools, tmp_path: Path) -> None:
     assert [item["name"] for item in beta] == ["beta.txt"]
     cached = [path.name for path in (tmp_path / "projects" / "alpha" / "cache").glob("*.md")]
     assert cached == ["alpha.txt.md"]
+
+
+# --- progress, process_file, list_input_files, list_providers ------------------
+
+
+def recording_context(project: str = "alpha") -> Any:
+    """A context that records the progress notifications and log lines."""
+    context = context_for(project)
+    context.progress = []
+    context.logs = []
+
+    async def report_progress(progress, total=None, message=None):
+        context.progress.append((progress, message))
+
+    async def info(message):
+        context.logs.append(message)
+
+    context.report_progress = report_progress
+    context.info = info
+    return context
+
+
+def test_process_files_streams_progress_to_the_client(tools, tmp_path: Path) -> None:
+    write_input(tmp_path, "alpha", "a.txt", "one")
+    write_input(tmp_path, "alpha", "b.txt", "two")
+    context = recording_context()
+
+    call(tools.process_files, context)
+
+    assert context.logs == ["File 1/2: a.txt", "File 2/2: b.txt"]
+    assert [value for value, _ in context.progress] == [1, 2]
+
+
+def test_list_input_files_reports_cache_state_without_processing(populated, tmp_path: Path) -> None:
+    write_input(tmp_path, "alpha", "fresh.txt", "new file")
+    write_input(tmp_path, "alpha", "notes.txt", "alpha requirements, edited")
+
+    payload = json.loads(call(populated.list_input_files, context_for("alpha")))
+
+    assert {item["name"]: item["cache_status"] for item in payload} == {
+        "fresh.txt": "new",
+        "notes.txt": "stale",
+    }
+    # Nothing was processed by looking.
+    assert not (tmp_path / "projects" / "alpha" / "cache" / "fresh.txt.md").exists()
+
+
+def test_list_input_files_marks_up_to_date_files_as_cached(populated) -> None:
+    payload = json.loads(call(populated.list_input_files, context_for("alpha")))
+
+    assert [(item["name"], item["cache_status"]) for item in payload] == [("notes.txt", "cached")]
+    assert payload[0]["processed_at"]
+
+
+def test_process_file_processes_one_file_and_reuses_the_cache(tools, tmp_path: Path) -> None:
+    write_input(tmp_path, "alpha", "a.txt", "one")
+    write_input(tmp_path, "alpha", "b.txt", "two")
+
+    first = json.loads(call(tools.process_file, context_for("alpha"), "a.txt"))
+    again = json.loads(call(tools.process_file, context_for("alpha"), "a.txt"))
+
+    assert (first["name"], first["status"]) == ("a.txt", "new")
+    assert again["status"] == "cached"
+    cache = tmp_path / "projects" / "alpha" / "cache"
+    assert (cache / "a.txt.md").is_file()
+    assert not (cache / "b.txt.md").exists()
+
+
+def test_process_file_force_reprocesses_and_archives_the_previous_result(populated, tmp_path: Path) -> None:
+    payload = json.loads(call(populated.process_file, context_for("alpha"), "notes.txt", True))
+
+    assert payload["status"] == "updated"
+    history = tmp_path / "projects" / "alpha" / "cache" / ".history"
+    assert any(history.glob("notes.txt.*.md"))
+
+
+@pytest.mark.parametrize("name", ["", "../secret.txt", "sub/notes.txt", "missing.txt", "image.png"])
+def test_process_file_rejects_names_it_cannot_process(tools, tmp_path: Path, name: str) -> None:
+    write_input(tmp_path, "alpha", "image.png", "not supported")
+
+    payload = json.loads(call(tools.process_file, context_for("alpha"), name))
+
+    assert "error" in payload
+
+
+def test_process_file_streams_progress_and_reports_the_file(tools, tmp_path: Path) -> None:
+    write_input(tmp_path, "alpha", "a.txt", "one")
+    context = recording_context()
+
+    call(tools.process_file, context, "a.txt")
+
+    # A single text file has no sub-steps, so only the result is reported.
+    assert context.progress == []
+
+
+def test_list_providers_never_returns_key_values(tools, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GOOGLE_API_KEY", "super-secret-value")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    raw = call(tools.list_providers, context_for("alpha"))
+    providers = {item["name"]: item for item in json.loads(raw)}
+
+    assert "super-secret-value" not in raw
+    assert providers["google_genai"]["api_key_set"] is True
+    assert providers["openai"]["api_key_set"] is False
+    assert providers["google_genai"]["api_key_env"] == "GOOGLE_API_KEY"
+    assert providers["openrouter"]["models"], "catalog providers list curated models"
+    assert {"id", "capabilities"} <= set(providers["google_genai"]["models"][0])
+
+
+def test_a_cancelled_request_stops_the_worker_at_its_next_checkpoint(tools) -> None:
+    import threading
+    import time
+
+    import progress
+
+    started = threading.Event()
+    outcome: dict[str, bool] = {}
+
+    def work() -> None:
+        started.set()
+        for _ in range(300):
+            time.sleep(0.01)
+            try:
+                progress.reporter().stage("working")
+            except progress.ProcessingCancelled:
+                outcome["cancelled"] = True
+                raise
+
+    async def scenario() -> None:
+        task = asyncio.create_task(tools._run_reported(context_for("alpha"), work))
+        await asyncio.to_thread(started.wait, 5)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        await asyncio.sleep(0.3)
+
+    asyncio.run(scenario())
+
+    assert outcome == {"cancelled": True}
+
+
+# --- listen address ------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("host_env", "container_marker", "expected"),
+    [
+        ("10.1.2.3", False, "10.1.2.3"),  # an explicit HOST always wins
+        ("127.0.0.1", True, "127.0.0.1"),
+        (None, True, "0.0.0.0"),  # in a container: reachable through the published port
+        (None, False, "127.0.0.1"),  # on a workstation: loopback only
+    ],
+)
+def test_bind_host(tools, monkeypatch: pytest.MonkeyPatch, host_env, container_marker, expected) -> None:
+    if host_env is None:
+        monkeypatch.delenv("HOST", raising=False)
+    else:
+        monkeypatch.setenv("HOST", host_env)
+    monkeypatch.setattr(tools.os.path, "exists", lambda path: container_marker and path == "/.dockerenv")
+
+    assert tools.bind_host() == expected

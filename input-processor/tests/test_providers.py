@@ -232,3 +232,20 @@ def test_catalog_capabilities_must_be_known(tmp_path: Path) -> None:
 
     with pytest.raises(ProviderConfigurationError, match="Unknown capability 'hearing'"):
         load_catalog(path)
+
+
+def test_native_metadata_file_matches_the_provider_classes() -> None:
+    import json
+
+    from providers.describe import NATIVE_METADATA_PATH
+    from providers.native import NATIVE_PROVIDERS
+
+    declared = {item["name"]: item for item in json.loads(NATIVE_METADATA_PATH.read_text())["providers"]}
+
+    assert set(declared) == {provider.name for provider in NATIVE_PROVIDERS}
+    for provider in NATIVE_PROVIDERS:
+        item = declared[provider.name]
+        assert item["api_key_env"] == provider.api_key_env
+        assert item["default_model"] == provider.default_model
+        assert item["capabilities"] == list(provider.capabilities.names())
+        assert provider.default_model in item["models"]

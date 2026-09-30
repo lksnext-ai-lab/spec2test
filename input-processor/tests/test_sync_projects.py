@@ -53,6 +53,19 @@ def test_paths_are_read_from_the_configuration_file(tmp_path: Path) -> None:
     assert project.cache == (tmp_path / "output" / "cache").resolve()
 
 
+def test_a_features_folder_is_ignored_and_never_mounted(tmp_path: Path) -> None:
+    """``features`` belongs to the VS Code extension: the container must not see it."""
+    features = tmp_path / "gherkin-out"
+    entry = project_entry(tmp_path, features=str(features))
+    config = write_config(tmp_path, {"projects": [entry]})
+
+    projects = sync_projects.load_config(config)
+    override = sync_projects.render_override(projects, config)
+
+    assert [project.name for project in projects] == ["shop-app"]
+    assert "gherkin-out" not in override
+
+
 def test_output_folders_default_to_a_hidden_data_directory(tmp_path: Path) -> None:
     config = write_config(tmp_path, {"projects": [project_entry(tmp_path)]})
 

@@ -59,6 +59,9 @@ Use the `input-processor` MCP to analyze provided input files (videos, PDFs, etc
    - `error`: that one file could not be processed; report it and carry on with the rest.
    - `orphaned`: cached content whose source file is gone from the inputs folder. It is
      still readable — mention it to the user, but do not count it as an input file.
+   To see what would happen without processing anything, call `list_input_files`
+   (`cache_status`: `cached`, `stale`, `renamed`, `new`); to (re)process a single file
+   call `process_file` with its `file_name`.
 3. Call `list_processed_files` to get the list of processed files — this returns the
    name, the content hash and the processing time of each file
 4. **For each file, one at a time:**

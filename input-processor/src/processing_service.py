@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+import progress
 from cache.entry import CacheEntry
 from cache.index import CacheIndex
 from cache.lookup import resolve
@@ -163,9 +164,11 @@ class ProcessingService:
         context = self._handler_context()
         files = self.supported_files()
 
-        results: list[FileResult] = [
-            self._process_path(path, reconciler, context) for path in files
-        ]
+        results: list[FileResult] = []
+        total = len(files)
+        for index, path in enumerate(files, start=1):
+            progress.reporter().step(index, total, f"File {index}/{total}: {path.name}")
+            results.append(self._process_path(path, reconciler, context))
 
         report = ProcessingReport(
             results=tuple(results),
@@ -174,12 +177,41 @@ class ProcessingService:
         _log.info("Processed %s file(s): %s", len(report.results), report.summarise())
         return report
 
-    def process_file(self, path: Path) -> FileResult:
-        """Process a single file (used by tests and ad-hoc runs)."""
+    def process_file(self, path: Path, force: bool = False) -> FileResult:
+        """Process a single file; ``force`` redoes it even when it is cached."""
         self._initialise_cache()
         return self._process_path(
-            Path(path), CacheReconciler(self.cache), self._handler_context()
+            Path(path), CacheReconciler(self.cache), self._handler_context(), force
         )
+
+    def inspect(self) -> list[dict[str, object]]:
+        """Describe every input file against the cache without processing anything.
+
+        ``cache_status`` is ``cached`` (up to date), ``stale`` (content changed),
+        ``renamed`` (same content under another name) or ``new``.
+        """
+        self._initialise_cache()
+        reconciler = CacheReconciler(self.cache)
+        report: list[dict[str, object]] = []
+        for path in self.supported_files():
+            try:
+                source = SourceFile.from_path(path)
+            except OSError as exc:
+                report.append({"name": path.name, "cache_status": "error", "error": _describe_error(exc)})
+                continue
+            plan = reconciler.plan(source)
+            status = "stale" if plan.status is CacheStatus.UPDATED else plan.status.value
+            item: dict[str, object] = {
+                "name": source.name,
+                "format": source.format,
+                "size": source.size,
+                "sha256": source.sha256,
+                "cache_status": status,
+            }
+            if plan.entry is not None:
+                item["processed_at"] = plan.entry.processed_at
+            report.append(item)
+        return report
 
     def cache_index(self) -> CacheIndex:
         """Current cache contents, read from disk."""
@@ -202,6 +234,7 @@ class ProcessingService:
         path: Path,
         reconciler: CacheReconciler,
         context: HandlerContext,
+        force: bool = False,
     ) -> FileResult:
         """Read one file and process it, reporting files that vanished."""
         try:
@@ -209,13 +242,14 @@ class ProcessingService:
         except OSError as exc:
             _log.exception("Could not read %s", path)
             return FileResult.unreadable(path, _describe_error(exc))
-        return self._process(source, reconciler, context)
+        return self._process(source, reconciler, context, force)
 
     def _process(
         self,
         source: SourceFile,
         reconciler: CacheReconciler,
         context: HandlerContext,
+        force: bool = False,
     ) -> FileResult:
         handler = self.handlers.find(source.name)
         if handler is None:
@@ -229,7 +263,10 @@ class ProcessingService:
                 lambda: handler.handle(source, context),
                 self.provider,
                 self.model,
+                force=force,
             )
+        except progress.ProcessingCancelled:
+            raise
         except Exception as exc:  # noqa: BLE001 - one bad file must not stop the run
             _log.exception("Error processing %s", source.name)
             _log.debug("Traceback for %s:\n%s", source.name, traceback.format_exc())

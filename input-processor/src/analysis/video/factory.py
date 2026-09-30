@@ -17,7 +17,6 @@ from settings import VideoSettings
 _log = logging.getLogger(__name__)
 
 VIDEO_PROMPT_NAME = "video"
-DEFAULT_SEGMENTS_DIRNAME = "_segments"
 
 
 def choose_video_analyzer(
@@ -56,7 +55,7 @@ def _select(
             prompt=prompt,
             settings=settings,
             segmenter=VideoSegmenter(
-                work_dir=work_dir / DEFAULT_SEGMENTS_DIRNAME,
+                work_dir=work_dir,
                 require_audio=settings.require_audio,
             ),
         )

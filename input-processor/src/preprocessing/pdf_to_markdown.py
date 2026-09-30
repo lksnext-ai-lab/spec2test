@@ -16,6 +16,7 @@ from analysis.image_describer import ImageDescriber
 from cache.preprocessed import PreprocessedStore
 from cache.reconcile import CacheStatus
 from cache.source import SourceFile
+from progress import reporter
 
 _log = logging.getLogger(__name__)
 
@@ -58,6 +59,7 @@ class PdfToMarkdown:
         pre_existing = {item.name for item in images_dir.glob("*")}
 
         try:
+            reporter().stage("Converting PDF to Markdown")
             markdown = _to_markdown(source.path, images_dir)
             if self._describer is None:
                 return markdown
@@ -90,6 +92,7 @@ class PdfToMarkdown:
 
         assert self._describer is not None
         for index in range(replacements):
+            reporter().step(index + 1, replacements, f"Describing image {index + 1}/{replacements}")
             placeholder_path = placeholders[index]
             image_bytes, media_type = images[index]
             description = self._describer.describe(image_bytes, media_type)

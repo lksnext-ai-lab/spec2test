@@ -30,6 +30,8 @@ class CatalogEntry:
     default_model: str
     capabilities: Capabilities = field(default_factory=Capabilities)
     model_capabilities: Mapping[str, Capabilities] = field(default_factory=dict)
+    models: tuple[str, ...] = ()
+    """Curated model ids offered by UIs; any other id still works."""
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> "CatalogEntry":
@@ -52,6 +54,7 @@ class CatalogEntry:
             default_model=str(raw["default_model"]).strip(),
             capabilities=Capabilities.from_names(raw.get("capabilities") or ["text"]),
             model_capabilities=model_capabilities,
+            models=tuple(str(model) for model in raw.get("models") or ()),
         )
 
     def to_provider(self) -> "OpenAICompatibleProvider":
