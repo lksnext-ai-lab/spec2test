@@ -35,7 +35,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python packages and pin crawl4ai version
-RUN python -m pip install --no-cache-dir uvicorn mcp[cli] "crawl4ai==0.6.3"
+RUN python -m pip install --no-cache-dir uvicorn mcp[cli] "crawl4ai==0.9.4"
 
 # Install Playwright browsers
 RUN python -m playwright install chromium

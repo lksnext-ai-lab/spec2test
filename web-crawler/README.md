@@ -203,6 +203,25 @@ The crawler provides intelligent error handling for common issues:
 - Keep the service bound to a trusted local or private network. The MCP endpoint has no
    application-level authentication configured by default.
 
+## Tests
+
+The suite needs the pinned `crawl4ai` and `pytest`, but no browser and no network:
+
+```bash
+cd web-crawler
+python -m pytest tests -q
+```
+
+SonarQube reads a checked-in coverage report, `tests/coverage.xml`. It is a snapshot, so
+regenerate it whenever `src/` changes (run from the repository root, on Python 3.12):
+
+```bash
+python -m pytest web-crawler/tests \
+    --cov=web-crawler/src \
+    --cov-config=web-crawler/tests/coveragerc \
+    --cov-report=xml:web-crawler/tests/coverage.xml
+```
+
 ## Support
 
 For installation questions or issues encountered, please contact `bperez@lksnext.com`
