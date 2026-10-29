@@ -13,6 +13,21 @@ export function AdvancedTab(props: { state: AppState; draft: Record<string, stri
       <section className="card">
         <div className="setting">
           <div className="setting-text">
+            <div className="field-title">Data folder</div>
+            <div className="field-help mono">{state.dataFolder.path}</div>
+            <div className="field-help">Holds projects.json and the work area of every project. Your input folders stay where they are.</div>
+          </div>
+          <button disabled={Boolean(state.docker.busy)} onClick={() => send({ type: 'changeDataFolder' })}>
+            <Icon name="folder" size={14} /> Change…
+          </button>
+          {state.dataFolder.isDefault ? null : (
+            <button disabled={Boolean(state.docker.busy)} onClick={() => send({ type: 'changeDataFolder', reset: true })}>
+              Default
+            </button>
+          )}
+        </div>
+        <div className="setting">
+          <div className="setting-text">
             <div className="field-title">Update the image</div>
             <div className="field-help">Pulls the newest image and recreates the containers. Use it when the container does not respond.</div>
           </div>

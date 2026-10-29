@@ -5,6 +5,7 @@ import {
   inputProcessorSpec,
   isCurrent,
   parseInspect,
+  shouldMapUser,
   webCrawlerSpec,
   wantedImage,
 } from '../src/core/containers';
@@ -69,5 +70,34 @@ describe('container inspection', () => {
     expect(isCurrent(running, 'img:dev', 'sha256:new')).toBe(false);
     expect(isCurrent(running, 'img:dev', undefined)).toBe(true);
     expect(isCurrent(running, 'img:0.3', 'sha256:old')).toBe(false);
+  });
+});
+
+describe('running as the user (native Docker on Linux)', () => {
+  const root = path.resolve('/home/me/.spec2test');
+  const base = { image: 'img:1', port: 8003, dataRoot: root, tuning: {}, secrets: [], gpu: false };
+
+  it('adds --user, keeps the model cache in the data folder and gives the process a writable home', () => {
+    const args = buildRunArgs(inputProcessorSpec({ ...base, user: { uid: 1000, gid: 1001 } }));
+    expect(args.join(' ')).toContain('--user 1000:1001');
+    expect(args).toContain('HF_HOME=/projects/.hf-cache');
+    expect(args).toContain('HOME=/tmp');
+    expect(args.some((arg) => arg.includes('spec2test-hf-cache'))).toBe(false);
+  });
+
+  it('keeps the named volume and root when no mapping is needed', () => {
+    const args = buildRunArgs(inputProcessorSpec(base));
+    expect(args).not.toContain('--user');
+    expect(args).toContain('spec2test-hf-cache:/root/.cache/huggingface');
+    expect(args).toContain('HF_HOME=/root/.cache/huggingface');
+  });
+
+  it('maps the user only for native Docker Engine on Linux', () => {
+    const engine = { operatingSystem: 'Ubuntu 24.04 LTS', securityOptions: '[name=seccomp,profile=builtin name=cgroupns]' };
+    expect(shouldMapUser('linux', engine)).toBe(true);
+    expect(shouldMapUser('linux', { ...engine, securityOptions: '[name=seccomp name=rootless]' })).toBe(false);
+    expect(shouldMapUser('linux', { ...engine, operatingSystem: 'Docker Desktop' })).toBe(false);
+    expect(shouldMapUser('darwin', engine)).toBe(false);
+    expect(shouldMapUser('win32', engine)).toBe(false);
   });
 });

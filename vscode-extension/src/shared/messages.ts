@@ -29,6 +29,8 @@ export interface ProjectView {
 
 export interface AppState {
   docker: { state: DockerState; detail?: string; busy?: string };
+  /** Where projects.json and the work areas live. */
+  dataFolder: { path: string; isDefault: boolean };
   /** The optional web-crawler container; absent when it is switched off. */
   crawler?: { state: DockerState; detail?: string };
   projects: ProjectView[];
@@ -63,6 +65,7 @@ export type ToHost =
   | { type: 'projectFolder'; name: string; which: ProjectFolder; action: 'open' | 'change' }
   | { type: 'useInCopilot'; name: string }
   | { type: 'installAgents' }
+  | { type: 'changeDataFolder'; reset?: boolean }
   | { type: 'docker'; action: 'install' | 'startDocker' | 'start' | 'stop' | 'restart' | 'rebuild' | 'logs' | 'crawlerLogs' }
   | { type: 'addFiles' }
   | { type: 'process'; files: string[]; force: boolean }

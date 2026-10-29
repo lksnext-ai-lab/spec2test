@@ -11,9 +11,22 @@ export const NAME_RE = /^[a-z0-9][a-z0-9._-]*$/;
 /** Folder inside a project's inputs folder that holds its results (`<inputs>/.spec2test/cache`). */
 export const PROJECT_DATA_DIRNAME = '.spec2test';
 
+let chosenRoot = '';
+
+/** The folder from the `spec2test.dataFolder` setting; empty means the default. Relative paths are ignored. */
+export function setDataRoot(value: string | undefined): void {
+  const text = (value ?? '').trim();
+  const expanded = text === '~' || text.startsWith('~/') || text.startsWith('~\\') ? path.join(os.homedir(), text.slice(1)) : text;
+  chosenRoot = path.isAbsolute(expanded) ? path.resolve(expanded) : '';
+}
+
+export function defaultDataRoot(): string {
+  return path.resolve(process.env.SPEC2TEST_HOME?.trim() || path.join(os.homedir(), '.spec2test'));
+}
+
 /** The one folder the container mounts: projects.json plus a work area per project. */
 export function dataRoot(): string {
-  return path.resolve(process.env.SPEC2TEST_HOME?.trim() || path.join(os.homedir(), '.spec2test'));
+  return chosenRoot || defaultDataRoot();
 }
 
 export interface ProjectEntry {

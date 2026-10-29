@@ -3,8 +3,9 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { DockerService, type ServiceConfig } from './docker';
-import { CONTAINER_NAME, inputProcessorSpec, webCrawlerSpec, wantedImage } from './core/containers';
+import { DockerService, engineInfo, type ServiceConfig } from './docker';
+import { CONTAINER_NAME, HF_CACHE_DIRNAME, inputProcessorSpec, shouldMapUser, toDockerPath, webCrawlerSpec, wantedImage } from './core/containers';
+import { hasForeignOwner } from './core/ownership';
 import { judgeProbe } from './core/health';
 import { EnvStore } from './envstore';
 import { FileIndex, copyIntoInputs, isSupported, outputsOf, ownedFiles } from './core/fileindex';
@@ -15,6 +16,8 @@ import {
   ProjectError,
   addProject,
   dataRoot,
+  defaultDataRoot,
+  setDataRoot,
   workAreaOf,
   readConfig,
   removeProject,
@@ -176,6 +179,7 @@ export class Controller implements vscode.Disposable {
   // --- lifecycle --------------------------------------------------------------
 
   async init(): Promise<void> {
+    setDataRoot(this.settings.get<string>('dataFolder', ''));
     await this.importFromRepository();
     this.providers = readProviders(path.join(this.context.extensionPath, 'dist', 'providers'));
     await this.env.load(this.keyNames());
@@ -185,7 +189,9 @@ export class Controller implements vscode.Disposable {
     this.timers.push(setInterval(() => void this.probeDocker(), 5000));
     this.context.subscriptions.push(
       vscode.workspace.onDidChangeConfiguration((event) => {
-        if (event.affectsConfiguration('spec2test')) {
+        if (event.affectsConfiguration('spec2test.dataFolder')) {
+          void this.applyDataFolder();
+        } else if (event.affectsConfiguration('spec2test')) {
           void this.probeDocker();
         }
       }),
@@ -230,6 +236,93 @@ export class Controller implements vscode.Disposable {
     }
   }
 
+  // --- data folder -------------------------------------------------------------------------------
+
+  /** Pick (or reset) the data folder, offer to bring the projects along, then let the setting change do the switch. */
+  async changeDataFolder(reset = false): Promise<void> {
+    if (this.queue.busy) {
+      void vscode.window.showWarningMessage('Wait for the running job to finish, or cancel it, before moving the data folder.');
+      return;
+    }
+    const current = dataRoot();
+    let target = defaultDataRoot();
+    if (!reset) {
+      const picked = await vscode.window.showOpenDialog({
+        canSelectFiles: false,
+        canSelectFolders: true,
+        canSelectMany: false,
+        title: 'Choose the Spec2Test data folder',
+        defaultUri: vscode.Uri.file(path.dirname(current)),
+        openLabel: 'Use this folder',
+      });
+      if (!picked?.[0]) {
+        return;
+      }
+      target = path.resolve(picked[0].fsPath);
+    }
+    if (target === current) {
+      return;
+    }
+    const inside = (child: string, parent: string) => child.startsWith(parent + path.sep);
+    if (inside(target, current) || inside(current, target)) {
+      void vscode.window.showErrorMessage('The new folder and the current one cannot be inside each other.');
+      return;
+    }
+    const hasProjects = fs.existsSync(path.join(target, 'projects.json'));
+    const isEmpty = !fs.existsSync(target) || fs.readdirSync(target).length === 0;
+    let copy = false;
+    if (hasProjects) {
+      const answer = await vscode.window.showWarningMessage(`${target} already holds Spec2Test projects.`, { modal: true, detail: 'Spec2Test will use them as they are; your current projects are not copied.' }, 'Use it');
+      if (!answer) {
+        return;
+      }
+    } else {
+      const hasCurrent = fs.existsSync(path.join(current, 'projects.json'));
+      const detail = [
+        isEmpty ? '' : `The folder is not empty: Spec2Test will add its files inside it.`,
+        hasCurrent ? 'Copy brings projects.json and the work areas along. Your input folders and their results are not touched, and the old folder is left in place for you to delete.' : '',
+      ].filter(Boolean).join('\n\n');
+      const answer = await vscode.window.showWarningMessage(
+        `Use ${target} as the data folder?`,
+        { modal: true, detail: detail || undefined },
+        ...(hasCurrent ? ['Copy and switch', 'Switch without copying'] : ['Switch']),
+      );
+      if (!answer) {
+        return;
+      }
+      copy = answer === 'Copy and switch';
+    }
+    try {
+      if (copy) {
+        fs.cpSync(current, target, { recursive: true, force: false, errorOnExist: false });
+      } else {
+        fs.mkdirSync(target, { recursive: true });
+      }
+    } catch (error) {
+      void vscode.window.showErrorMessage(`Could not prepare ${target}: ${(error as Error).message}`);
+      return;
+    }
+    await this.settings.update('dataFolder', target === defaultDataRoot() ? undefined : target, vscode.ConfigurationTarget.Global);
+  }
+
+  /** The setting changed (from the command or by hand): follow it. */
+  private async applyDataFolder(): Promise<void> {
+    const before = dataRoot();
+    setDataRoot(this.settings.get<string>('dataFolder', ''));
+    if (dataRoot() === before) {
+      return;
+    }
+    fs.mkdirSync(dataRoot(), { recursive: true });
+    this.watchProject();
+    await this.rescan();
+    const state = (await this.dockerService.probe()).state;
+    if (state === 'running' || state === 'starting' || state === 'outdated') {
+      // The container mounts the folder, so it has to be recreated to see the new one.
+      await this.startService();
+    }
+    this.post();
+  }
+
   // --- what each container needs ----------------------------------------------------------------
 
   private get settings(): vscode.WorkspaceConfiguration {
@@ -254,9 +347,31 @@ export class Controller implements vscode.Disposable {
           tuning: this.env.read(),
           secrets: Object.keys(await this.env.secretValues(this.keyNames())),
           gpu: this.settings.get<boolean>('gpu', false),
+          user: await this.runAsUser(),
         }),
+      prepare: async (spec) => {
+        if (!spec.user) {
+          return undefined;
+        }
+        const root = dataRoot();
+        fs.mkdirSync(path.join(root, HF_CACHE_DIRNAME), { recursive: true });
+        if (!hasForeignOwner(root, spec.user.uid)) {
+          return undefined;
+        }
+        this.logs.appendLine('Giving you back the files an earlier run left owned by root…');
+        const { uid, gid } = spec.user;
+        return this.dockerService.runOnce(['run', '--rm', '--user', '0', '--entrypoint', 'chown', '-v', `${toDockerPath(root)}:/projects`, spec.image, '-R', `${uid}:${gid}`, '/projects']);
+      },
       secretValues: () => this.env.secretValues(this.keyNames()),
     };
+  }
+
+  /** On native Docker Engine for Linux the container runs as you, so the files it writes stay yours. */
+  private async runAsUser(): Promise<{ uid: number; gid: number } | undefined> {
+    if (typeof process.getuid !== 'function' || typeof process.getgid !== 'function') {
+      return undefined;
+    }
+    return shouldMapUser(os.platform(), await engineInfo()) ? { uid: process.getuid(), gid: process.getgid() } : undefined;
   }
 
   private get crawlerEnabled(): boolean {
@@ -355,6 +470,7 @@ export class Controller implements vscode.Disposable {
     const docker = problem ? { ...this.docker, detail: problem } : this.docker;
     return {
       docker,
+      dataFolder: { path: dataRoot(), isDefault: dataRoot() === defaultDataRoot() },
       crawler: this.crawler,
       projects,
       selected: this.selected,
@@ -418,6 +534,8 @@ export class Controller implements vscode.Disposable {
         return;
       case 'installAgents':
         return this.installAgents();
+      case 'changeDataFolder':
+        return this.changeDataFolder(message.reset);
       case 'selectProject':
         await this.context.workspaceState.update(SELECTED_KEY, message.name);
         this.watchProject();
