@@ -13,18 +13,11 @@ export function AdvancedTab(props: { state: AppState; draft: Record<string, stri
       <section className="card">
         <div className="setting">
           <div className="setting-text">
-            <div className="field-title">spec2test folder</div>
-            <div className="field-help mono">{state.repo ?? 'Not set'}</div>
+            <div className="field-title">Update the image</div>
+            <div className="field-help">Pulls the newest image and recreates the containers. Use it when the container does not respond.</div>
           </div>
-          <button onClick={() => send({ type: 'chooseRepo' })}>Change…</button>
-        </div>
-        <div className="setting">
-          <div className="setting-text">
-            <div className="field-title">Rebuild the image</div>
-            <div className="field-help">Use it after updating the repository, or when the container does not respond.</div>
-          </div>
-          <button disabled={!state.repo || Boolean(state.docker.busy)} onClick={() => send({ type: 'docker', action: 'rebuild' })}>
-            <Icon name="container" size={14} /> Rebuild
+          <button disabled={Boolean(state.docker.busy)} onClick={() => send({ type: 'docker', action: 'rebuild' })}>
+            <Icon name="container" size={14} /> Update
           </button>
         </div>
         <div className="setting">
@@ -32,7 +25,7 @@ export function AdvancedTab(props: { state: AppState; draft: Record<string, stri
             <div className="field-title">Container logs</div>
             <div className="field-help">Follow what the input-processor is doing.</div>
           </div>
-          <button disabled={!state.repo} onClick={() => send({ type: 'docker', action: 'logs' })}>
+          <button onClick={() => send({ type: 'docker', action: 'logs' })}>
             <Icon name="terminal" size={14} /> Show
           </button>
         </div>

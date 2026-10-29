@@ -3,7 +3,8 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { DockerService } from './docker';
+import { DockerService, type ServiceConfig } from './docker';
+import { CONTAINER_NAME, inputProcessorSpec, webCrawlerSpec, wantedImage } from './core/containers';
 import { judgeProbe } from './core/health';
 import { EnvStore } from './envstore';
 import { FileIndex, copyIntoInputs, isSupported, outputsOf, ownedFiles } from './core/fileindex';
@@ -42,8 +43,8 @@ export class Controller implements vscode.Disposable {
   private readonly _onState = new vscode.EventEmitter<AppState>();
   readonly onState = this._onState.event;
 
-  private repo?: string;
-  private docker: AppState['docker'] = { state: 'no-repo' };
+  private docker: AppState['docker'] = { state: 'stopped' };
+  private crawler: AppState['crawler'];
   private files: FileCard[] = [];
   private orphans: OrphanCard[] = [];
   private jobs: readonly Job[] = [];
@@ -56,19 +57,23 @@ export class Controller implements vscode.Disposable {
   private unreachableSince?: number;
 
   private readonly dockerService: DockerService;
+  private readonly crawlerService: DockerService;
   private readonly env: EnvStore;
   private readonly mcp: McpService;
   private readonly queue: JobQueue;
   private readonly trace: Traceability;
   private highlight?: { name: string; nonce: number };
   readonly logs: vscode.OutputChannel;
+  private readonly crawlerLogs: vscode.OutputChannel;
   readonly activity: vscode.OutputChannel;
 
   constructor(private readonly context: vscode.ExtensionContext) {
     this.logs = vscode.window.createOutputChannel('Spec2Test: input-processor');
     this.activity = vscode.window.createOutputChannel('Spec2Test');
-    this.dockerService = new DockerService(() => this.repo, () => this.port, this.logs);
-    this.env = new EnvStore(context.secrets, () => this.repo);
+    this.crawlerLogs = vscode.window.createOutputChannel('Spec2Test: web-crawler');
+    this.dockerService = new DockerService(() => this.inputProcessorConfig(), this.logs);
+    this.crawlerService = new DockerService(() => this.crawlerConfig(), this.crawlerLogs);
+    this.env = new EnvStore(context.secrets, context.globalState);
     this.mcp = new McpService(() => this.port, (line) => this.activity.appendLine(line));
     this.queue = new JobQueue(
       (file, force, hooks) => this.runJob(file, force, hooks),
@@ -84,7 +89,7 @@ export class Controller implements vscode.Disposable {
       chooseFeaturesDir: () => this.changeFeaturesFolder(this.selected),
       changed: () => this.post(),
     });
-    this.context.subscriptions.push(this._onState, this.logs, this.activity, this.trace, this);
+    this.context.subscriptions.push(this._onState, this.logs, this.crawlerLogs, this.activity, this.trace, this);
   }
 
   // --- settings and paths ---------------------------------------------------
@@ -94,7 +99,7 @@ export class Controller implements vscode.Disposable {
   }
 
   private get configFile(): string | undefined {
-    return this.repo ? path.join(dataRoot(), 'projects.json') : undefined;
+    return path.join(dataRoot(), 'projects.json');
   }
 
   private readConfig(): ProjectsConfig {
@@ -168,16 +173,19 @@ export class Controller implements vscode.Disposable {
   // --- lifecycle --------------------------------------------------------------
 
   async init(): Promise<void> {
-    this.locateRepo();
-    await this.afterRepoChange();
+    await this.importFromRepository();
+    this.providers = readProviders(path.join(this.context.extensionPath, 'dist', 'providers'));
+    await this.env.load(this.keyNames());
+    this.watchProject();
+    await this.rescan();
+    await this.probeDocker();
     this.timers.push(setInterval(() => void this.probeDocker(), 5000));
     this.context.subscriptions.push(
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (event.affectsConfiguration('spec2test')) {
-          void this.locateRepoAndRefresh();
+          void this.probeDocker();
         }
       }),
-      vscode.workspace.onDidChangeWorkspaceFolders(() => void this.locateRepoAndRefresh()),
     );
     if (vscode.workspace.getConfiguration('spec2test').get<boolean>('autoStartService')) {
       void this.startService();
@@ -188,36 +196,83 @@ export class Controller implements vscode.Disposable {
     this.timers.forEach(clearInterval);
     this.watchers.forEach((watcher) => watcher.dispose());
     this.dockerService.dispose();
+    this.crawlerService.dispose();
     this.queue.cancel();
   }
 
-  private locateRepo(): void {
+  /** Bring projects, keys and the saved crawler login over from an old clone of the repository, once. */
+  private async importFromRepository(): Promise<void> {
     const configured = vscode.workspace.getConfiguration('spec2test').get<string>('repoPath', '');
     const folders = (vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.fsPath);
-    this.repo = findRepo(configured, folders);
-  }
-
-  private async locateRepoAndRefresh(): Promise<void> {
-    this.locateRepo();
-    await this.afterRepoChange();
-  }
-
-  private async afterRepoChange(): Promise<void> {
-    if (this.repo) {
-      try {
-        migrateLegacy(this.repo, dataRoot()).forEach((note) => this.activity.appendLine(note));
-      } catch (error) {
-        this.activity.appendLine(`Could not import the old projects.json: ${(error as Error).message}`);
-      }
-      this.env.ensureFile();
-      this.providers = readProviders(this.repo);
-      await this.env.syncKeys(this.keyNames());
-    } else {
-      this.providers = [];
+    const repo = findRepo(configured, folders);
+    if (!repo) {
+      return;
     }
-    this.watchProject();
-    await this.rescan();
-    await this.probeDocker();
+    try {
+      migrateLegacy(repo, dataRoot()).forEach((note) => this.activity.appendLine(note));
+      const names = Array.from(new Set([...readProviders(path.join(this.context.extensionPath, 'dist', 'providers')).map((provider) => provider.apiKeyEnv), HF_TOKEN]));
+      const imported = await this.env.importLegacyEnv(path.join(repo, '.env'), names, TUNING.map((variable) => variable.key));
+      if (imported.length > 0) {
+        this.activity.appendLine(`Imported from ${path.join(repo, '.env')}: ${imported.join(', ')}.`);
+      }
+      const login = path.join(repo, 'auth_actions.json');
+      const target = path.join(dataRoot(), 'auth_actions.json');
+      if (fs.existsSync(login) && !fs.existsSync(target)) {
+        fs.mkdirSync(dataRoot(), { recursive: true });
+        fs.copyFileSync(login, target);
+      }
+    } catch (error) {
+      this.activity.appendLine(`Could not import from ${repo}: ${(error as Error).message}`);
+    }
+  }
+
+  // --- what each container needs ----------------------------------------------------------------
+
+  private get settings(): vscode.WorkspaceConfiguration {
+    return vscode.workspace.getConfiguration('spec2test');
+  }
+
+  private get version(): string {
+    return String(this.context.extension.packageJSON.version);
+  }
+
+  private inputProcessorConfig(): ServiceConfig {
+    const image = wantedImage('inputProcessor', this.version, this.settings.get<string>('image.inputProcessor', ''));
+    return {
+      container: CONTAINER_NAME.inputProcessor,
+      image,
+      port: this.port,
+      spec: async (resolved) =>
+        inputProcessorSpec({
+          image: resolved,
+          port: this.port,
+          dataRoot: dataRoot(),
+          tuning: this.env.read(),
+          secrets: Object.keys(await this.env.secretValues(this.keyNames())),
+          gpu: this.settings.get<boolean>('gpu', false),
+        }),
+      secretValues: () => this.env.secretValues(this.keyNames()),
+    };
+  }
+
+  private get crawlerEnabled(): boolean {
+    return this.settings.get<boolean>('webCrawler.enabled', true);
+  }
+
+  private get crawlerPort(): number {
+    return this.settings.get<number>('webCrawler.port', 8000);
+  }
+
+  private crawlerConfig(): ServiceConfig {
+    const image = wantedImage('webCrawler', this.version, this.settings.get<string>('image.webCrawler', ''));
+    const login = path.join(dataRoot(), 'auth_actions.json');
+    return {
+      container: CONTAINER_NAME.webCrawler,
+      image,
+      port: this.crawlerPort,
+      spec: async (resolved) => webCrawlerSpec({ image: resolved, port: this.crawlerPort, authActionsFile: fs.existsSync(login) ? login : undefined }),
+      secretValues: async () => ({}),
+    };
   }
 
   private keyNames(): string[] {
@@ -266,7 +321,10 @@ export class Controller implements vscode.Disposable {
     const judged = judgeProbe(await this.dockerService.probe(), this.unreachableSince, Date.now(), this.port);
     this.unreachableSince = judged.since;
     this.docker = judged.docker;
-    if (JSON.stringify(this.docker) !== before) {
+    const crawlerBefore = JSON.stringify(this.crawler);
+    const engineUp = this.docker.state !== 'not-installed' && this.docker.state !== 'daemon-down';
+    this.crawler = this.crawlerEnabled && engineUp ? await this.crawlerService.probeContainer() : undefined;
+    if (JSON.stringify(this.docker) !== before || JSON.stringify(this.crawler) !== crawlerBefore) {
       this.post();
     }
   }
@@ -290,10 +348,10 @@ export class Controller implements vscode.Disposable {
       vision: entry.vision,
     }));
     const env = this.env.read();
-    const docker = problem && this.docker.state !== 'no-repo' ? { ...this.docker, detail: problem } : this.docker;
+    const docker = problem ? { ...this.docker, detail: problem } : this.docker;
     return {
-      repo: this.repo,
       docker,
+      crawler: this.crawler,
       projects,
       selected: this.selected,
       defaults: config.defaults ?? {},
@@ -354,8 +412,6 @@ export class Controller implements vscode.Disposable {
       case 'ready':
         this.post();
         return;
-      case 'chooseRepo':
-        return this.chooseRepo();
       case 'selectProject':
         await this.context.workspaceState.update(SELECTED_KEY, message.name);
         this.watchProject();
@@ -404,7 +460,7 @@ export class Controller implements vscode.Disposable {
         await this.env.saveKey(message.env, message.value);
         return this.markEnvPending();
       case 'saveTuning':
-        this.env.saveTuning(message.values);
+        await this.env.saveTuning(message.values);
         return this.markEnvPending();
       case 'applyEnv':
         return this.applyEnv();
@@ -422,29 +478,6 @@ export class Controller implements vscode.Disposable {
   private async markEnvPending(): Promise<void> {
     await this.context.globalState.update(PENDING_KEY, true);
     this.post();
-  }
-
-  // --- repository ------------------------------------------------------------------
-
-  async chooseRepo(): Promise<void> {
-    const picked = await vscode.window.showOpenDialog({
-      canSelectFiles: false,
-      canSelectFolders: true,
-      canSelectMany: false,
-      title: 'Choose the spec2test repository folder',
-      openLabel: 'Use this folder',
-    });
-    if (!picked?.[0]) {
-      return;
-    }
-    const folder = picked[0].fsPath;
-    if (!findRepo(folder, [])) {
-      void vscode.window.showErrorMessage(
-        'That folder does not look like the spec2test repository (docker-compose.yaml and input-processor/ are expected).',
-      );
-      return;
-    }
-    await vscode.workspace.getConfiguration('spec2test').update('repoPath', folder, vscode.ConfigurationTarget.Global);
   }
 
   // --- projects ----------------------------------------------------------------------
@@ -523,7 +556,7 @@ export class Controller implements vscode.Disposable {
     if (!name) {
       return undefined;
     }
-    const start = this.featuresDirOf(name) ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? this.repo ?? os.homedir();
+    const start = this.featuresDirOf(name) ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? os.homedir();
     const picked = await this.pickFolder(`Folder with the .feature files of '${name}' (subfolders are included)`, start);
     if (!picked) {
       return undefined;
@@ -667,7 +700,7 @@ export class Controller implements vscode.Disposable {
   }
 
   private async useInCopilot(name: string): Promise<void> {
-    const folder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? this.repo;
+    const folder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (!folder) {
       return;
     }
@@ -701,53 +734,58 @@ export class Controller implements vscode.Disposable {
       case 'startDocker':
         return this.startDockerDesktop();
       case 'start':
-        // Building is a cached no-op when nothing changed, and it repairs a stale image.
-        return this.startService({ build: true });
+      case 'restart':
+        return this.startService();
       case 'stop':
         await this.withBusy('Stopping…', async () => {
           await this.dockerService.down();
+          if (this.crawler) {
+            await this.crawlerService.down();
+          }
         });
         return;
-      case 'restart':
-        return this.startService({ recreate: true });
       case 'rebuild':
-        return this.startService({ recreate: true, build: true });
+        return this.startService({ refresh: true });
       case 'logs':
         this.dockerService.showLogs();
+        return;
+      case 'crawlerLogs':
+        this.crawlerService.showLogs();
         return;
     }
   }
 
-  async startService(options: { recreate?: boolean; build?: boolean } = {}): Promise<void> {
-    if (!this.repo) {
-      await this.chooseRepo();
-      return;
-    }
-    await this.withBusy(options.build ? 'Building and starting…' : 'Starting the input-processor…', async () => {
-      this.env.ensureFile();
+  /** (Re)create the containers from the image this version wants. `refresh` pulls the newest copy first. */
+  async startService(options: { refresh?: boolean } = {}): Promise<void> {
+    const label = options.refresh ? 'Updating the image…' : 'Starting the input-processor…';
+    await this.withBusy(label, async () => {
       // Docker would create a missing bind-mount source as root.
       fs.mkdirSync(dataRoot(), { recursive: true });
-      if (options.build) {
-        this.logs.show(true);
-      }
       const result = await this.dockerService.up(options);
       if (result.code !== 0) {
         this.dockerService.showLogs();
         throw new Error(`Docker could not start the service:\n${tail(result.stderr)}`);
       }
-      this.setDocker('starting', options.build ? 'Building and starting…' : 'Starting the input-processor…');
+      this.setDocker('starting', label);
       if (!(await this.dockerService.waitUntilReachable())) {
         this.dockerService.showLogs();
         throw new Error('The input-processor did not answer within two minutes. Check the logs.');
       }
       await this.context.globalState.update(PENDING_KEY, false);
+      if (this.crawlerEnabled) {
+        // The crawler is optional: a failure here must not hide that the input-processor works.
+        const crawled = await this.crawlerService.up(options);
+        if (crawled.code !== 0) {
+          void vscode.window.showWarningMessage(`The web crawler could not start: ${tail(crawled.stderr, 3)}`);
+        }
+      }
     });
   }
 
   private async applyEnv(): Promise<void> {
     const state = (await this.dockerService.probe()).state;
-    if (state === 'running' || state === 'starting') {
-      await this.startService({ recreate: true });
+    if (state === 'running' || state === 'starting' || state === 'outdated') {
+      await this.startService();
     } else {
       await this.context.globalState.update(PENDING_KEY, false);
       this.post();

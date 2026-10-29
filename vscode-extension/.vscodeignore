@@ -2,6 +2,7 @@
 !dist/extension.js
 !dist/webview.js
 !dist/webview.css
+!dist/providers/*.json
 !media/**
 !package.json
 !README.md

@@ -9,12 +9,12 @@ import type {
 } from './types';
 
 export type DockerState =
-  | 'no-repo'
   | 'not-installed'
   | 'daemon-down'
   | 'stopped'
   | 'starting'
   | 'running'
+  | 'outdated'
   | 'unhealthy';
 
 export interface ProjectView {
@@ -28,8 +28,9 @@ export interface ProjectView {
 }
 
 export interface AppState {
-  repo?: string;
   docker: { state: DockerState; detail?: string; busy?: string };
+  /** The optional web-crawler container; absent when it is switched off. */
+  crawler?: { state: DockerState; detail?: string };
   projects: ProjectView[];
   selected?: string;
   defaults: { llm?: LlmSettings; vision?: LlmSettings };
@@ -56,13 +57,12 @@ export type FileOpenKind = 'original' | 'cache' | 'cache-preview' | 'preprocesse
 
 export type ToHost =
   | { type: 'ready' }
-  | { type: 'chooseRepo' }
   | { type: 'selectProject'; name: string }
   | { type: 'createProject' }
   | { type: 'removeProject'; name: string }
   | { type: 'projectFolder'; name: string; which: ProjectFolder; action: 'open' | 'change' }
   | { type: 'useInCopilot'; name: string }
-  | { type: 'docker'; action: 'install' | 'startDocker' | 'start' | 'stop' | 'restart' | 'rebuild' | 'logs' }
+  | { type: 'docker'; action: 'install' | 'startDocker' | 'start' | 'stop' | 'restart' | 'rebuild' | 'logs' | 'crawlerLogs' }
   | { type: 'addFiles' }
   | { type: 'process'; files: string[]; force: boolean }
   | { type: 'processPending' }

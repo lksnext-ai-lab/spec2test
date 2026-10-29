@@ -25,7 +25,6 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('spec2test.stopService', () => controller.dockerAction('stop')),
     vscode.commands.registerCommand('spec2test.showLogs', () => controller.dockerAction('logs')),
     vscode.commands.registerCommand('spec2test.addFiles', () => controller.addFilesDialog()),
-    vscode.commands.registerCommand('spec2test.chooseRepo', () => controller.chooseRepo()),
     vscode.commands.registerCommand('spec2test.openWalkthrough', () =>
       vscode.commands.executeCommand('workbench.action.openWalkthrough', 'lksnext-ai-lab.spec2test#spec2test.gettingStarted'),
     ),

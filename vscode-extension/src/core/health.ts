@@ -25,7 +25,7 @@ export function judgeProbe(probe: Probe, since: number | undefined, now: number,
   return {
     docker: {
       state: 'unhealthy',
-      detail: `The container is running but does not answer on port ${port}. An image built with an older version is the usual cause: press Rebuild.`,
+      detail: `The container is running but does not answer on port ${port}. Check the logs; pressing Update image pulls the image again and restarts it.`,
     },
     since: start,
   };
