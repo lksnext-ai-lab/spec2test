@@ -1,0 +1,211 @@
+# Central ProjectTraceKit configuration.
+# Replace every [CONFIGURAR] value before using the workflow.
+
+project:
+  name: "Spec2Test"
+  slug: "spec2test"
+  description: "pending"
+  language: "en"
+
+repository:
+  organization: "lksnext-ai-lab"
+  name: "spec2test"
+  url: "https://github.com/lksnext-ai-lab/spec2test"
+  local_root: "."
+  default_branch: "main"
+  pull_request_target: "main"
+
+requirements:
+  # same_repository: requirements live in this repository.
+  # external_repository: requirements are managed in another repository.
+  mode: "same_repository"
+  repository:
+    organization: "lksnext-ai-lab"
+    name: "spec2test"
+    url: "https://github.com/lksnext-ai-lab/spec2test"
+    local_path: "."
+    # Optional. Base branch of the requirements repository; empty = repository.default_branch.
+    default_branch: ""
+  # Path, relative to the repository root, that contains the requirements.
+  local_root: "requirements"
+
+paths:
+  # In external_repository mode the requirements keys (requirements through
+  # traceability_matrix) are relative to requirements.repository.local_path.
+  # plans and tasks are always relative to this repository root.
+  requirements: "."
+  sources: "sources"
+  epics: "epics"
+  templates: "templates"
+  decisions: "decisions"
+  requirement_sources: "requirement-sources"
+  domain_model: "domain-model.md"
+  glossary: "domain-model/glossary.md"
+  requirements_index: "epics/index.md"
+  traceability_matrix: "traceability-matrix.md"
+  plans: "plans"
+  tasks: "tasks"
+
+identifiers:
+  # Prefixes used by the validator, idx.py and consolidate-epics.py.
+  # One word without hyphens; the defaults keep the original naming.
+  epic:
+    prefix: "EPIC"
+    pattern: "EPIC-N"
+    file_pattern: "epic-NN-name.md"
+  feature:
+    prefix: "FEAT"
+    pattern: "FEAT-N-M"
+  scenario:
+    prefix: "ESC"
+    pattern: "ESC-N-M-K"
+  task:
+    prefix: "TASK"
+    pattern: "TASK-N"
+  numbering:
+    zero_padding: false
+    reuse_existing_ids: false
+
+repositories:
+  - alias: "spec2test"
+    slug: "spec2test"
+    local_path: "C:\\VSCode\\WS\\spec2Test"
+    responsibility: "pending"
+    stack: "pending"
+    codebase_memory_project: "pending"
+    codebase_memory_project_status: "pending"
+    enabled: true
+    default_branch: ""
+    specialist_agent: ""
+
+github_projects:
+  # When false, GitHub Projects items and fields are neither created nor synced.
+  # Tasks can still be documented locally.
+  required: false
+  organization: "[CONFIGURAR]"
+  number: "[CONFIGURAR]"
+  url: "[CONFIGURAR]"
+  fields:
+    Status:
+      type: "single_select"
+      required: true
+      options: [Backlog, Ready, "In progress", "In Review", Done]
+      default: Backlog
+    Priority:
+      type: "single_select"
+      required: true
+      options: ["Critical", "High", "Medium", "Low", "Future"]
+      default: "Medium"
+    Size:
+      type: "single_select"
+      required: true
+      options: ["Small", "Medium", "Large"]
+      default: "Medium"
+    Estimate:
+      type: "number"
+      required: true
+      values: [1, 2, 3, 5, 8, 13, 21]
+    Epic:
+      type: "text"
+      required: true
+      pattern: "EPIC-N"
+
+workflow:
+  # Stable stage identifiers (never translated).
+  stages:
+    - specify
+    - analyze
+    - plan
+    - approve
+    - create_tasks
+    - implement
+    - test
+    - trace
+  # Empty = locale default (es: "analista/" and "[ANALISIS]";
+  # en: "analyst/" and "[ANALYSIS]"). The installer materializes them.
+  analyst_branch_prefix: "analyst/"
+  analyst_commit_tag: "[ANALYSIS]"
+  approval_required_before_issues: true
+  approval_required_before_implementation: true
+  human_validation_required_for_completion: true
+
+specification:
+  states: ["Pending", "In analysis", "Approved", "In development", "In testing", "Completed", "Blocked", "Rejected"]
+  task_states: ["Open", "Closed", "No issue"]
+  verification_states: ["Not defined", "Declared", "In implementation", "Implemented", "Not applicable"]
+  priorities: ["Critical", "High", "Medium", "Low", "Future"]
+  acceptance_criteria_format: "Given [precondition], when [action], then [result]"
+
+integrations:
+  codebase_memory:
+    enabled: true
+    version: "v0.11.0"
+    provider: "mcp"
+    auto_index: false
+    index_on_demand: true
+    require_coverage_check: true
+    fallback: "local_search"
+    # Relative to paths.tasks.
+    evidence_path: "audits"
+    index_tool_requires_confirmation: true
+    allowed_tools:
+      - "list_projects"
+      - "index_repository"
+      - "index_status"
+      - "get_graph_schema"
+      - "get_architecture"
+      - "query_graph"
+      - "search_graph"
+      - "search_code"
+      - "trace_path"
+      - "get_code_snippet"
+      - "check_index_coverage"
+  github_cli:
+    enabled: false
+    token_env_var: "GITHUB_TOKEN"
+    required_scopes: [repo, project]
+
+modules:
+  # plans, tasks and scripts are always installed; they are not modules.
+  requirements: true
+  github_projects: false
+  # false: scripts/consolidate-epics.py is neither installed nor required.
+  consolidate_epics: true
+  e2e: false
+
+features:
+  e2e:
+    enabled: false
+    repository: "[CONFIGURAR]"
+    local_path: "[CONFIGURAR]"
+    framework: "[CONFIGURAR]"
+    command: "[CONFIGURAR]"
+    feature_path: "[CONFIGURAR]"
+    tag_pattern: "@ESC-N-M-K"
+  consolidate_epics:
+    enabled: true
+
+labels:
+  default: [requirements, documentation]
+  by_repository: {}
+
+validation:
+  unresolved_marker: "[CONFIGURAR]"
+  platforms:
+    copilot: true
+  # File paths (checked for existence on disk).
+  required_agents:
+    - ".github/agents/analyst-quality-auditor.agent.md"
+    - ".github/agents/operator-codebase-memory.agent.md"
+    - ".github/agents/analyst-requirements.agent.md"
+  excluded_agents:
+    - ".github/agents/initializer-project.agent.md"
+  # Bare agent names (matched against `agents:`/`handoffs:` frontmatter
+  # references in .github/agents/*.agent.md, not against file paths).
+  optional_agents:
+    - "analyst-e2e-traceability"
+
+template:
+  # ProjectTraceKit version and commit used to install this destination.
+  version: "1.0.0"
+  source_commit: "8bc655b8da4c8ab9f3923ec3b75a2a421ad43c0b"

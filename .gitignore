@@ -12,6 +12,7 @@ build/
 /projects.json
 /docker-compose.override.yaml
 /.spec2test-data/
+/.codebase-memory/
 
 # Claude files:
 .claude/
@@ -19,4 +20,6 @@ build/
 # Test coverage artefacts (generated for SonarQube).
 /coverage.xml
 .coverage
+
+# SonarQube token (local only).
 .env.sonar
