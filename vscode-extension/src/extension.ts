@@ -3,12 +3,14 @@ import { Controller } from './controller';
 import { DropZone } from './dropzone';
 import { GherkinEditor, REVEAL_COMMAND } from './gherkinLinks';
 import { SidebarProvider } from './sidebar';
+import { UpdateChecker } from './updates';
 
 export function activate(context: vscode.ExtensionContext): void {
   const controller = new Controller(context);
   const sidebar = new SidebarProvider(context.extensionUri, controller);
   const dropZone = new DropZone(controller);
   const gherkin = new GherkinEditor(controller);
+  const updates = new UpdateChecker(context, controller.activity);
 
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(SidebarProvider.viewType, sidebar, {
@@ -24,6 +26,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('spec2test.startService', () => controller.startService()),
     vscode.commands.registerCommand('spec2test.stopService', () => controller.dockerAction('stop')),
     vscode.commands.registerCommand('spec2test.showLogs', () => controller.dockerAction('logs')),
+    vscode.commands.registerCommand('spec2test.checkForUpdates', () => updates.check(true)),
     vscode.commands.registerCommand('spec2test.changeDataFolder', () => controller.changeDataFolder()),
     vscode.commands.registerCommand('spec2test.installAgents', () => controller.installAgents()),
     vscode.commands.registerCommand('spec2test.addFiles', () => controller.addFilesDialog()),
@@ -33,6 +36,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   void controller.init();
+  setTimeout(() => void updates.checkOnStartup(), 8000);
 }
 
 export function deactivate(): void {}

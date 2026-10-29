@@ -33,6 +33,10 @@ The extension runs `ghcr.io/lksnext-ai-lab/spec2test-input-processor:<extension 
 
 API keys are stored in the OS keychain and handed to the container as environment variables when it starts; no `.env` file is written. If you used the old setup, the keys, tuning values, projects and `auth_actions.json` of the clone you have open are imported once.
 
+## Updates
+
+A `.vsix` install does not update by itself, so the extension checks the latest GitHub Release once a day (and on *Spec2Test: Check for updates*). When a newer version exists it offers **Update**, **Release notes** or **Skip this version**. Update downloads the `.vsix`, checks its size and SHA-256 against what GitHub reports, installs it and asks you to reload the window. After the reload, a running container that still uses the old image is recreated from the image of the new version. The check needs the releases to be readable without signing in; for a private repository download the `.vsix` from the Releases page. Turn it off with `spec2test.checkForUpdates`.
+
 ## Where things live, on each OS
 
 The **data folder** (`~/.spec2test` by default: `/Users/you/.spec2test` on macOS, `C:\Users\you\.spec2test` on Windows, `/home/you/.spec2test` on Linux) holds `projects.json` and a disposable work area per project. Change it with *Spec2Test: Change the data folder…* or **Settings → Advanced → Data folder**; the extension offers to copy your projects along and recreates the container with the new mount. Your input folders and their results (`<inputs>/.spec2test/cache`) are never moved.
@@ -116,6 +120,7 @@ What you get:
 | `spec2test.webCrawler.enabled` | `true` | Also run the web-crawler container |
 | `spec2test.webCrawler.port` | `8000` | Host port of the web crawler |
 | `spec2test.gpu` | `false` | Pass `--gpus all` to the input-processor |
+| `spec2test.checkForUpdates` | `true` | Once a day, look for a newer release on GitHub and offer to install it |
 | `spec2test.dataFolder` | *(empty = `~/.spec2test`)* | Where `projects.json` and the work areas live; change it with *Spec2Test: Change the data folder…* |
 
 ## Development

@@ -87,6 +87,13 @@ Optionally check the backend on its own first: `python -m pytest input-processor
 15. **Stop.** Footer menu → **Stop**. *Expect:* "Input-processor is stopped"; files and results
     remain on disk.
 
+## Self-update
+
+1. Build an older version (`npm version 0.0.1 --no-git-tag-version`, `npm run package`, then revert the version) and install it in a clean profile, with a newer release published on GitHub.
+2. *Spec2Test: Check for updates*. *Expect:* "Spec2Test X is available (you have 0.0.1)" with **Update / Release notes / Skip this version**. **Skip** hides the startup prompt for that version but the command still offers it.
+3. **Update**. *Expect:* a download notification, then "installed, reload the window". After **Reload Window**, `code --list-extensions --show-versions` shows the new version. If a container was running, the footer shows "Updating the image…" and ends with the images of the new version (`docker ps --format '{{.Image}}'`).
+4. Offline or unauthenticated 404: the command says it could not check; the startup check stays silent.
+
 ## Data folder
 
 1. ⚙ → *Advanced* → **Data folder → Change…**, pick an empty folder outside `~/.spec2test`. *Expect:* a dialog offering *Copy and switch*; after it, the footer shows the container restarting, `projects.json` and the project work areas are in the new folder, your input folders are untouched, and processing a file works.
