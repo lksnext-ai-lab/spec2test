@@ -20,3 +20,6 @@ build/
 # Test coverage artefacts (generated for SonarQube).
 /coverage.xml
 .coverage
+
+# SonarQube token (local only).
+.env.sonar

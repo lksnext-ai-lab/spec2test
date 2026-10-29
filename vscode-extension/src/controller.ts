@@ -8,7 +8,7 @@ import { CONTAINER_NAME, HF_CACHE_DIRNAME, inputProcessorSpec, shouldMapUser, to
 import { hasForeignOwner } from './core/ownership';
 import { judgeProbe } from './core/health';
 import { EnvStore } from './envstore';
-import { FileIndex, copyIntoInputs, isSupported, outputsOf, ownedFiles } from './core/fileindex';
+import { FileIndex, copyIntoInputs, isSupported, outputsOf } from './core/fileindex';
 import { JobQueue, type RunHooks } from './core/jobqueue';
 import { TARGETS, McpFileError, applyPlan, installedMcpFiles, loadBundle, planInstall, retargetProject, type AgentTarget, type McpSettings } from './core/agents';
 import { migrateLegacy } from './core/migrate';
@@ -17,6 +17,8 @@ import {
   addProject,
   dataRoot,
   defaultDataRoot,
+  displayName,
+  slugify,
   setDataRoot,
   workAreaOf,
   readConfig,
@@ -25,14 +27,13 @@ import {
   resolvePaths,
   setModel,
   updateProject,
-  validateName,
   writeConfig,
   type ProjectsConfig,
 } from './core/projects';
 import { readProviders } from './core/providers';
 import { HF_TOKEN, TUNING } from './core/tuning';
 import { McpService } from './mcp';
-import { hashFile, refreshWork, runStaged, type Layout } from './core/staging';
+import { hasPending, hashFile, needsStaging, refreshWork, retryPending, runStaged, type Layout } from './core/staging';
 import { Traceability } from './traceability';
 import { findRepo } from './repo';
 import type { AppState, DockerState, FileOpenKind, ProjectFolder, ProjectView, ToHost } from './shared/messages';
@@ -134,7 +135,7 @@ export class Controller implements vscode.Disposable {
       return undefined;
     }
     const paths = resolvePaths(entry, path.dirname(file));
-    return { inputs: paths.inputs, cache: paths.cache, work: workAreaOf(path.dirname(file), name) };
+    return { inputs: paths.inputs, cache: paths.cache, preprocessed: paths.preprocessed, work: workAreaOf(path.dirname(file), name) };
   }
 
   private runJob(file: string, force: boolean, hooks: RunHooks): Promise<{ status: string; error?: string }> {
@@ -472,6 +473,7 @@ export class Controller implements vscode.Disposable {
     const base = this.configFile ? path.dirname(this.configFile) : '';
     const projects: ProjectView[] = config.projects.map((entry) => ({
       name: entry.name,
+      title: displayName(entry),
       ...resolvePaths(entry, base),
       features: resolveFeatures(entry, base),
       llm: entry.llm,
@@ -621,41 +623,67 @@ export class Controller implements vscode.Disposable {
   private async createProject(): Promise<void> {
     const file = this.requireConfigFile();
     const config = readConfig(file);
-    const name = await vscode.window.showInputBox({
+    const title = await vscode.window.showInputBox({
       title: 'New Spec2Test project',
       prompt: 'Project name',
-      placeHolder: 'shop-app',
-      validateInput: (value) =>
-        validateName(value) ?? (config.projects.some((project) => project.name === value) ? 'That project already exists.' : undefined),
+      placeHolder: 'Shop app',
+      validateInput: (value) => {
+        const text = value.trim();
+        if (!text) {
+          return 'Give the project a name.';
+        }
+        if (text.length > 60) {
+          return 'Use at most 60 characters.';
+        }
+        return config.projects.some((project) => displayName(project).toLowerCase() === text.toLowerCase()) ? 'That project already exists.' : undefined;
+      },
     });
-    if (!name) {
+    const label = title?.trim();
+    if (!label) {
       return;
     }
+    const name = slugify(label, config.projects.map((project) => project.name));
     const defaults = resolvePaths({ name }, path.dirname(file));
     const choice = await vscode.window.showQuickPick(
       [
-        { label: '$(folder) Use the default folder', description: defaults.inputs, value: 'default' as const },
         { label: '$(folder-opened) Choose the folder with my specs…', description: 'an existing folder of PDFs, recordings, Markdown or text', value: 'choose' as const },
+        { label: '$(folder) Let Spec2Test keep the files', description: 'a folder of its own, for files you add from the sidebar', value: 'default' as const },
       ],
-      { title: `Inputs folder for '${name}'`, placeHolder: 'Where are the files to process?' },
+      { title: `Inputs folder for '${label}'`, placeHolder: 'Where are the files to process?' },
     );
     if (!choice) {
       return;
     }
     let inputs = defaults.inputs;
     if (choice.value === 'choose') {
-      const picked = await this.pickFolder(`Inputs folder for '${name}'`, defaults.inputs);
+      const picked = await this.pickFolder(`Inputs folder for '${label}'`, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? os.homedir());
       if (!picked) {
         return;
       }
       inputs = picked;
     }
+    const features = await this.askFeaturesFolder(label, inputs);
     fs.mkdirSync(inputs, { recursive: true });
-    // The cache and pre-processed folders keep their defaults; each can be changed later from the project menu.
-    writeConfig(file, addProject(config, { name, inputs }));
+    // The results live in <inputs>/.spec2test; each folder can be changed later from the project menu.
+    writeConfig(file, addProject(config, { name, ...(label !== name ? { title: label } : {}), inputs, ...(features ? { features } : {}) }));
     await this.context.workspaceState.update(SELECTED_KEY, name);
     this.watchProject();
     await this.rescan();
+  }
+
+  /** Last step of creating a project: where the .feature files are, or "later". */
+  private async askFeaturesFolder(label: string, start: string): Promise<string | undefined> {
+    const choice = await vscode.window.showQuickPick(
+      [
+        { label: '$(folder-opened) Choose the folder for my .feature files…', description: 'subfolders are included', value: 'choose' as const },
+        { label: '$(clock) I will set it later', description: 'the project menu has “Set features folder…”', value: 'later' as const },
+      ],
+      { title: `Features folder for '${label}'`, placeHolder: 'Where are (or will be) the Gherkin .feature files?' },
+    );
+    if (choice?.value !== 'choose') {
+      return undefined;
+    }
+    return this.pickFolder(`Folder with the .feature files of '${label}'`, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? start);
   }
 
   private async pickFolder(title: string, current: string): Promise<string | undefined> {
@@ -800,37 +828,53 @@ export class Controller implements vscode.Disposable {
     await this.rescan();
   }
 
+  /**
+   * Removing a project forgets it and deletes Spec2Test's temporary work area. The user's folder
+   * is never touched (the processed results stay in <inputs>/.spec2test); only a project whose
+   * files live in the work area itself asks first, because there the work area is all there is.
+   */
   private async removeProjectFlow(name: string): Promise<void> {
-    const { paths } = this.projectPaths(name);
-    const owned = ownedFiles(paths);
-    const inputs = owned.filter((file) => path.dirname(file) === paths.inputs).length;
-    const trashLabel = owned.length > 0 ? `Detach and move ${owned.length} item(s) to the trash` : undefined;
-    const detach = 'Detach only';
-
-    const answer = await vscode.window.showWarningMessage(
-      `Remove project '${name}'?`,
-      {
-        modal: true,
-        detail: [
-          `Detach only: '${name}' disappears from Spec2Test. Nothing is deleted from your disk.`,
-          owned.length > 0
-            ? `Detach and trash: also moves to the trash ${inputs} input file(s) from ${paths.inputs} and all their results (cache and pre-processed). Other files in those folders are not touched.`
-            : 'There are no input files or results to delete.',
-        ].join('\n\n'),
-      },
-      ...(trashLabel ? [detach, trashLabel] : [detach]),
-    );
-    if (!answer) {
+    const layout = this.layoutOf(name);
+    const entry = this.readConfig().projects.find((project) => project.name === name);
+    if (!layout || !entry) {
       return;
     }
-    if (answer === trashLabel) {
-      for (const target of owned) {
-        await vscode.workspace.fs.delete(vscode.Uri.file(target), { recursive: true, useTrash: true });
+    if (this.queue.busy && this.jobProject === name) {
+      void vscode.window.showWarningMessage(`'${displayName(entry)}' is being processed. Wait for it or cancel first.`);
+      return;
+    }
+    const managed = !needsStaging(layout);
+    if (managed) {
+      const answer = await vscode.window.showWarningMessage(
+        `Remove project '${displayName(entry)}'?`,
+        { modal: true, detail: `Its files live in Spec2Test's own folder (${layout.work.root}), so removing the project moves them all to the trash: the inputs and the results.` },
+        'Move to trash',
+      );
+      if (!answer) {
+        return;
+      }
+    } else if (hasPending(layout) && !retryPending(layout)) {
+      const answer = await vscode.window.showWarningMessage(
+        `Some results of '${displayName(entry)}' could not be copied to ${layout.cache} yet.`,
+        { modal: true, detail: 'Removing the project now loses them. Check that the folder is writable, or remove anyway.' },
+        'Remove anyway',
+      );
+      if (!answer) {
+        return;
       }
     }
+    try {
+      if (managed) {
+        await vscode.workspace.fs.delete(vscode.Uri.file(layout.work.root), { recursive: true, useTrash: true });
+      } else {
+        fs.rmSync(layout.work.root, { recursive: true, force: true });
+      }
+    } catch (error) {
+      void vscode.window.showErrorMessage(`Could not delete the work area of '${displayName(entry)}': ${(error as Error).message}`);
+      return;
+    }
     const file = this.requireConfigFile();
-    const config = removeProject(readConfig(file), name);
-    writeConfig(file, config);
+    writeConfig(file, removeProject(readConfig(file), name));
     this.watchProject();
     await this.rescan();
   }

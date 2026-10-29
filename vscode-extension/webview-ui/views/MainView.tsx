@@ -30,7 +30,7 @@ export function MainView({ state, openSettings }: { state: AppState; openSetting
             searchable
             disabled={projects.length === 0}
             leading={<Icon name="folder" />}
-            options={projects.map((item) => ({ value: item.name, label: item.name, hint: shortPath(item.inputs, 2) }))}
+            options={projects.map((item) => ({ value: item.name, label: item.title, hint: shortPath(item.inputs, 2) }))}
             onChange={(name) => send({ type: 'selectProject', name })}
             actions={[{ label: 'New project…', icon: 'plus', onSelect: newProject }]}
             emptyText="No project matches"

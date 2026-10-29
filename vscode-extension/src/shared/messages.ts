@@ -19,6 +19,8 @@ export type DockerState =
 
 export interface ProjectView {
   name: string;
+  /** What to show; `name` is the folder-safe identifier. */
+  title: string;
   inputs: string;
   preprocessed: string;
   cache: string;

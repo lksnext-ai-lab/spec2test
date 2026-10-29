@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { dataRoot, defaultDataRoot, setDataRoot, ProjectError, addProject, readConfig, removeProject, resolveFeatures, resolvePaths, setModel, updateProject, validateName, workAreaOf, writeConfig } from '../src/core/projects';
+import { dataRoot, defaultDataRoot, displayName, slugify, setDataRoot, ProjectError, addProject, readConfig, removeProject, resolveFeatures, resolvePaths, setModel, updateProject, validateName, workAreaOf, writeConfig } from '../src/core/projects';
 
 describe('validateName', () => {
   it.each(['shop-app', 'a', 'app.v2', 'x_1'])('accepts %s', (name) => expect(validateName(name)).toBeUndefined());
@@ -20,10 +20,10 @@ describe('resolvePaths', () => {
     });
   });
 
-  it('puts the cache of an outside inputs folder next to it, and pre-processed files in the work area', () => {
+  it('puts the results of an outside inputs folder next to it, in .spec2test', () => {
     expect(resolvePaths({ name: 'a', inputs: '/abs/specs' }, root)).toEqual({
       inputs: path.resolve('/abs/specs'),
-      preprocessed: path.join(root, 'a', 'preprocessed'),
+      preprocessed: path.join(path.resolve('/abs/specs'), '.spec2test', 'preprocessed'),
       cache: path.join(path.resolve('/abs/specs'), '.spec2test', 'cache'),
     });
   });
@@ -122,5 +122,29 @@ describe('dataRoot', () => {
     setDataRoot(path.resolve('/srv/spec2test'));
     setDataRoot('');
     expect(dataRoot()).toBe(defaultDataRoot());
+  });
+});
+
+describe('slugify and displayName', () => {
+  it('makes a folder-safe name from anything the user types', () => {
+    expect(slugify('Shop App')).toBe('shop-app');
+    expect(slugify('  Gestión de Usuarios  ')).toBe('gestion-de-usuarios');
+    expect(slugify('A/B: test?!')).toBe('a-b-test');
+    expect(slugify('v2.0 (beta)')).toBe('v2.0-beta');
+    expect(slugify('---')).toBe('project');
+    expect(slugify('projects.json')).toBe('projects-json');
+    expect(validateName(slugify('Ünïcode  ✓ name'))).toBeUndefined();
+  });
+
+  it('adds a number when the folder name is taken, and keeps it short', () => {
+    expect(slugify('Shop', ['shop'])).toBe('shop-2');
+    expect(slugify('Shop', ['shop', 'shop-2'])).toBe('shop-3');
+    expect(slugify('x'.repeat(100)).length).toBeLessThanOrEqual(48);
+  });
+
+  it('shows the title when there is one and the name otherwise', () => {
+    expect(displayName({ name: 'shop-app', title: 'Shop App' })).toBe('Shop App');
+    expect(displayName({ name: 'shop-app' })).toBe('shop-app');
+    expect(displayName({ name: 'shop-app', title: '  ' })).toBe('shop-app');
   });
 });
