@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  input-processor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            input-processor/requirements.txt
+            requirements-dev.txt
+      # The suite does not need the heavy runtime packages (they are imported
+      # lazily), but langchain-core must be present: see requirements-dev.txt.
+      - run: pip install -r requirements-dev.txt langchain-core "mcp>=1.9,<2"
+      - run: PYTHONPATH=src python -m pytest -q
+        working-directory: input-processor
+
+  web-crawler:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Same pins as web-crawler/Dockerfile; no browser and no network needed.
+      - run: pip install pytest uvicorn "mcp[cli]" "crawl4ai==0.9.4"
+      - run: python -m pytest web-crawler/tests -q
+
+  extension:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vscode-extension
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: vscode-extension/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
