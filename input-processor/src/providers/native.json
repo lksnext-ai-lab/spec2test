@@ -1,0 +1,25 @@
+{
+  "providers": [
+    {
+      "name": "google_genai",
+      "api_key_env": "GOOGLE_API_KEY",
+      "default_model": "gemini-2.0-flash",
+      "capabilities": ["text", "images", "video_upload"],
+      "models": ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-2.5-pro"]
+    },
+    {
+      "name": "openai",
+      "api_key_env": "OPENAI_API_KEY",
+      "default_model": "gpt-4o-mini",
+      "capabilities": ["text", "images"],
+      "models": ["gpt-4o-mini", "gpt-4o"]
+    },
+    {
+      "name": "anthropic",
+      "api_key_env": "ANTHROPIC_API_KEY",
+      "default_model": "claude-sonnet-5",
+      "capabilities": ["text", "images"],
+      "models": ["claude-sonnet-5", "claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-4-5-20251001"]
+    }
+  ]
+}

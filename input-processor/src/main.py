@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
+from pathlib import Path
 from typing import Any, Callable, TypeVar
 
 import anyio
@@ -18,10 +20,12 @@ from mcp.server.fastmcp import Context, FastMCP
 from cache.entry import CacheEntry
 from cache.lookup import CacheLookupError
 from processing_service import ProcessingReport
+from progress import CallbackReporter, ProcessingCancelled, use_reporter
 from projects.headers import project_name_from_context
 from projects.model import ProjectConfigError
 from projects.registry import ProjectRegistry
 from projects.runtime import ProjectRuntime, RuntimePool
+from providers.describe import describe_providers
 from providers.registry import build_default_registry
 from settings import Settings
 
@@ -41,7 +45,9 @@ pool = RuntimePool(
     settings=settings,
 )
 
-mcp = FastMCP("Spec2Test-InputProcessor", stateless_http=True, json_response=True)
+# json_response stays off: tool calls answer as an SSE stream so progress and
+# log notifications reach the client while a long file is being processed.
+mcp = FastMCP("Spec2Test-InputProcessor", stateless_http=True, json_response=False)
 
 T = TypeVar("T")
 
@@ -49,6 +55,47 @@ T = TypeVar("T")
 async def _run_blocking(work: Callable[[], T]) -> T:
     """Run blocking work in a worker thread so requests stay parallel."""
     return await anyio.to_thread.run_sync(work)
+
+
+async def _notify(context: Context, message: str, counter: int) -> None:
+    """Send one progress notification plus a log line to the client."""
+    report = getattr(context, "report_progress", None)
+    if report is not None:
+        try:
+            await report(counter, None, message)
+        except TypeError:  # older SDKs have no ``message`` argument
+            await report(counter, None)
+    info = getattr(context, "info", None)
+    if info is not None:
+        await info(message)
+
+
+async def _run_reported(context: Context, work: Callable[[], T]) -> T:
+    """Run ``work`` in a worker thread, streaming its progress to the client.
+
+    When the client cancels the request the thread cannot be interrupted, so
+    it is told to stop at its next checkpoint instead; the project lock is
+    held until it does.
+    """
+    cancelled = threading.Event()
+    counter = 0
+
+    def sink(message: str, progress: Any, total: Any) -> None:
+        nonlocal counter
+        counter += 1
+        anyio.from_thread.run(_notify, context, message, counter)
+
+    reporter = CallbackReporter(sink, cancelled)
+
+    def run() -> T:
+        with use_reporter(reporter):
+            return work()
+
+    try:
+        return await anyio.to_thread.run_sync(run, abandon_on_cancel=True)
+    except anyio.get_cancelled_exc_class():
+        cancelled.set()
+        raise
 
 
 def _runtime(context: Context) -> ProjectRuntime:
@@ -149,7 +196,9 @@ async def process_files(ctx: Context) -> str:
             return runtime.service().process_all()
 
     try:
-        report = await _run_blocking(work)
+        report = await _run_reported(ctx, work)
+    except ProcessingCancelled:
+        return _error("Processing was cancelled.")
     except Exception as exc:  # noqa: BLE001 - report the failure instead of crashing
         _log.exception("process_files failed for project %s", runtime.project.name)
         return _error(f"Processing failed: {exc}")
@@ -157,6 +206,94 @@ async def process_files(ctx: Context) -> str:
     payload = [result.to_dict() for result in report.results]
     payload.extend(_orphan_summary(entry) for entry in report.orphaned)
     return json.dumps(payload, indent=2)
+
+
+@mcp.tool()
+async def list_input_files(ctx: Context) -> str:
+    """
+    List the input files of this project and their cache state, without processing.
+
+    Use it to see what process_files or process_file would do.
+
+    Returns:
+        JSON string containing a list of file objects:
+        - name: Original filename
+        - format: File format (.mp4, .pdf, .md, .txt)
+        - size: Size in bytes
+        - sha256: Content digest of the source file
+        - cache_status: cached | stale | renamed | new
+        - processed_at: When the cached content was produced (if any)
+    """
+    try:
+        runtime = _runtime(ctx)
+    except ProjectConfigError as exc:
+        return _error(str(exc))
+
+    try:
+        return json.dumps(await _run_blocking(lambda: runtime.service().inspect()), indent=2)
+    except Exception as exc:  # noqa: BLE001
+        _log.exception("list_input_files failed")
+        return _error(f"Could not list the input files: {exc}")
+
+
+@mcp.tool()
+async def process_file(ctx: Context, file_name: str, force: bool = False) -> str:
+    """
+    Process a single input file and report progress while it runs.
+
+    Behaves like process_files for one file: cached files are reused, changed
+    files are reprocessed and the previous result archived. With force=True
+    the file is processed again even if the cache is up to date.
+
+    Args:
+        file_name: Name of a file in the project's input folder
+        force: Process again even when the cached result is up to date
+
+    Returns:
+        JSON object with name, format, size, sha256, status
+        (new | cached | updated | renamed | error), processed_at and error.
+    """
+    name = (file_name or "").strip()
+    if not name or Path(name).name != name:
+        return _error("file_name must be the name of a file in the input folder.")
+
+    try:
+        runtime = _runtime(ctx)
+    except ProjectConfigError as exc:
+        return _error(str(exc))
+
+    def work() -> dict[str, Any]:
+        with runtime.lock:
+            service = runtime.service()
+            path = service.input_dir / name
+            if not path.is_file():
+                raise FileNotFoundError(f"'{name}' is not in the input folder.")
+            if not service.handlers.supports(path):
+                raise ValueError(f"'{name}' has an unsupported format.")
+            return service.process_file(path, force=force).to_dict()
+
+    try:
+        return json.dumps(await _run_reported(ctx, work), indent=2)
+    except ProcessingCancelled:
+        return _error("Processing was cancelled.")
+    except (FileNotFoundError, ValueError) as exc:
+        return _error(str(exc))
+    except Exception as exc:  # noqa: BLE001
+        _log.exception("process_file failed for %s", name)
+        return _error(f"Processing failed: {exc}")
+
+
+@mcp.tool()
+async def list_providers(ctx: Context) -> str:
+    """
+    List the LLM providers and curated models that can be configured.
+
+    Returns:
+        JSON list of providers with name, api_key_env, api_key_set (whether the
+        server has the key; the key itself is never returned), default_model,
+        capabilities and models [{id, capabilities}].
+    """
+    return json.dumps(describe_providers(providers, os.environ), indent=2)
 
 
 @mcp.tool()
@@ -269,11 +406,26 @@ async def get_all_processed_content(ctx: Context) -> str:
     return json.dumps(results, indent=2)
 
 
+def bind_host() -> str:
+    """Address to listen on.
+
+    ``HOST`` wins when set. Otherwise a container must listen on every interface
+    (a published port cannot reach 127.0.0.1 inside it), and anything else stays
+    on loopback.
+    """
+    explicit = (os.getenv("HOST") or "").strip()
+    if explicit:
+        return explicit
+    in_container = os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")
+    return "0.0.0.0" if in_container else "127.0.0.1"  # noqa: S104 - published port needs it
+
+
 if __name__ == "__main__":
     import uvicorn
 
-    _log.info("Starting input processor on port 8000 (projects: %s)", _configured_projects())
+    host = bind_host()
+    _log.info("Starting input processor on %s:8000 (projects: %s)", host, _configured_projects())
     # streamable_http_app() is a method returning the Starlette ASGI app, so it
     # has to be called: passing the method itself makes uvicorn treat it as an
     # app factory and fail.
-    uvicorn.run(mcp.streamable_http_app(), host=os.getenv("HOST", "127.0.0.1"), port=8000)
+    uvicorn.run(mcp.streamable_http_app(), host=host, port=8000)
