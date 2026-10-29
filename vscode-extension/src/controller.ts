@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import { DockerService, engineInfo, type ServiceConfig } from './docker';
 import { CONTAINER_NAME, HF_CACHE_DIRNAME, inputProcessorSpec, shouldMapUser, toDockerPath, webCrawlerSpec, wantedImage } from './core/containers';
 import { hasForeignOwner } from './core/ownership';
+import { dataFolderNotes, isNested, isWithin } from './core/folders';
 import { judgeProbe } from './core/health';
 import { EnvStore } from './envstore';
 import { FileIndex, copyIntoInputs, isSupported, outputsOf } from './core/fileindex';
@@ -58,7 +59,7 @@ export class Controller implements vscode.Disposable {
   private providers: ProviderInfo[] = [];
   private index?: FileIndex;
   private watchers: vscode.Disposable[] = [];
-  private timers: NodeJS.Timeout[] = [];
+  private readonly timers: NodeJS.Timeout[] = [];
   private rescanTimer?: NodeJS.Timeout;
   private jobProject?: string;
   private unreachableSince?: number;
@@ -257,64 +258,66 @@ export class Controller implements vscode.Disposable {
       return;
     }
     const current = dataRoot();
-    let target = defaultDataRoot();
-    if (!reset) {
-      const picked = await vscode.window.showOpenDialog({
-        canSelectFiles: false,
-        canSelectFolders: true,
-        canSelectMany: false,
-        title: 'Choose the Spec2Test data folder',
-        defaultUri: vscode.Uri.file(path.dirname(current)),
-        openLabel: 'Use this folder',
-      });
-      if (!picked?.[0]) {
-        return;
-      }
-      target = path.resolve(picked[0].fsPath);
-    }
-    if (target === current) {
+    const target = reset ? defaultDataRoot() : await this.pickDataFolder();
+    if (!target || target === current) {
       return;
     }
-    const inside = (child: string, parent: string) => child.startsWith(parent + path.sep);
-    if (inside(target, current) || inside(current, target)) {
+    if (isNested(target, current)) {
       void vscode.window.showErrorMessage('The new folder and the current one cannot be inside each other.');
       return;
     }
-    const hasProjects = fs.existsSync(path.join(target, 'projects.json'));
-    const isEmpty = !fs.existsSync(target) || fs.readdirSync(target).length === 0;
-    let copy = false;
-    if (hasProjects) {
-      const answer = await vscode.window.showWarningMessage(`${target} already holds Spec2Test projects.`, { modal: true, detail: 'Spec2Test will use them as they are; your current projects are not copied.' }, 'Use it');
-      if (!answer) {
-        return;
-      }
-    } else {
-      const hasCurrent = fs.existsSync(path.join(current, 'projects.json'));
-      const detail = [
-        isEmpty ? '' : `The folder is not empty: Spec2Test will add its files inside it.`,
-        hasCurrent ? 'Copy brings projects.json and the work areas along. Your input folders and their results are not touched, and the old folder is left in place for you to delete.' : '',
-      ].filter(Boolean).join('\n\n');
-      const answer = await vscode.window.showWarningMessage(
-        `Use ${target} as the data folder?`,
-        { modal: true, detail: detail || undefined },
-        ...(hasCurrent ? ['Copy and switch', 'Switch without copying'] : ['Switch']),
-      );
-      if (!answer) {
-        return;
-      }
-      copy = answer === 'Copy and switch';
+    const copy = await this.confirmDataFolder(target, current);
+    if (copy === undefined || !this.prepareDataFolder(target, current, copy)) {
+      return;
     }
+    await this.settings.update('dataFolder', target === defaultDataRoot() ? undefined : target, vscode.ConfigurationTarget.Global);
+  }
+
+  private async pickDataFolder(): Promise<string | undefined> {
+    const picked = await vscode.window.showOpenDialog({
+      canSelectFiles: false,
+      canSelectFolders: true,
+      canSelectMany: false,
+      title: 'Choose the Spec2Test data folder',
+      defaultUri: vscode.Uri.file(path.dirname(dataRoot())),
+      openLabel: 'Use this folder',
+    });
+    return picked?.[0] ? path.resolve(picked[0].fsPath) : undefined;
+  }
+
+  /** Ask before the switch. Resolves to undefined when cancelled, else whether the current projects are copied. */
+  private async confirmDataFolder(target: string, current: string): Promise<boolean | undefined> {
+    if (fs.existsSync(path.join(target, 'projects.json'))) {
+      const answer = await vscode.window.showWarningMessage(
+        `${target} already holds Spec2Test projects.`,
+        { modal: true, detail: 'Spec2Test will use them as they are; your current projects are not copied.' },
+        'Use it',
+      );
+      return answer ? false : undefined;
+    }
+    const isEmpty = !fs.existsSync(target) || fs.readdirSync(target).length === 0;
+    const hasCurrent = fs.existsSync(path.join(current, 'projects.json'));
+    const answer = await vscode.window.showWarningMessage(
+      `Use ${target} as the data folder?`,
+      { modal: true, detail: dataFolderNotes(isEmpty, hasCurrent) || undefined },
+      ...(hasCurrent ? ['Copy and switch', 'Switch without copying'] : ['Switch']),
+    );
+    return answer ? answer === 'Copy and switch' : undefined;
+  }
+
+  /** Copy the current folder to the target, or create the target. False (after telling the user) when that fails. */
+  private prepareDataFolder(target: string, current: string, copy: boolean): boolean {
     try {
       if (copy) {
         fs.cpSync(current, target, { recursive: true, force: false, errorOnExist: false });
       } else {
         fs.mkdirSync(target, { recursive: true });
       }
+      return true;
     } catch (error) {
       void vscode.window.showErrorMessage(`Could not prepare ${target}: ${(error as Error).message}`);
-      return;
+      return false;
     }
-    await this.settings.update('dataFolder', target === defaultDataRoot() ? undefined : target, vscode.ConfigurationTarget.Global);
   }
 
   /** The setting changed (from the command or by hand): follow it. */
@@ -401,8 +404,8 @@ export class Controller implements vscode.Disposable {
       container: CONTAINER_NAME.webCrawler,
       image,
       port: this.crawlerPort,
-      spec: async (resolved) => webCrawlerSpec({ image: resolved, port: this.crawlerPort, authActionsFile: fs.existsSync(login) ? login : undefined }),
-      secretValues: async () => ({}),
+      spec: (resolved) => Promise.resolve(webCrawlerSpec({ image: resolved, port: this.crawlerPort, authActionsFile: fs.existsSync(login) ? login : undefined })),
+      secretValues: () => Promise.resolve({}),
     };
   }
 
@@ -769,21 +772,12 @@ export class Controller implements vscode.Disposable {
     }
     for (const entry of this.readConfig().projects) {
       const root = resolveFeatures(entry, path.dirname(file));
-      if (!root || !(fsPath === root || fsPath.startsWith(root + path.sep))) {
+      if (!root || !isWithin(fsPath, root)) {
         continue;
       }
       const paths = resolvePaths(entry, path.dirname(file));
-      const inputs = new Map<string, { processed: boolean }>();
-      if (fs.existsSync(paths.inputs)) {
-        for (const item of fs.readdirSync(paths.inputs, { withFileTypes: true })) {
-          if (item.isFile() && isSupported(item.name)) {
-            inputs.set(item.name, { processed: fs.existsSync(outputsOf(paths, item.name).cache) });
-          }
-        }
-      }
       const index = this.trace.current?.project === entry.name ? this.trace.current : undefined;
-      const cited = new Map(Object.entries(index?.byInput ?? {}).map(([name, refs]) => [name, refs.length]));
-      return { project: entry.name, inputs, cited };
+      return { project: entry.name, inputs: inputsOf(paths), cited: citedCounts(index) };
     }
     return undefined;
   }
@@ -943,8 +937,9 @@ export class Controller implements vscode.Disposable {
       }
       const { written, skipped } = applyPlan(plan, overwrite);
       await this.context.workspaceState.update(AGENTS_KEY, { version: this.version, targets });
+      const kept = skipped.length ? `, ${skipped.length} kept` : '';
       const notes = [
-        `${written.length} file(s) written${skipped.length ? `, ${skipped.length} kept` : ''}.`,
+        `${written.length} file(s) written${kept}.`,
         project ? `The agents use project '${project}'.` : 'Create a project, then run this again so the agents know which one to use.',
         targets.includes('copilot') ? 'Copilot: start the servers from .vscode/mcp.json.' : '',
         targets.includes('claude') ? 'Claude Code: approve the project servers on first use.' : '',
@@ -1115,23 +1110,7 @@ export class Controller implements vscode.Disposable {
       void vscode.window.showWarningMessage('Create or select a project before adding files.');
       return;
     }
-    const sources: string[] = [];
-    const rejected: string[] = [];
-    for (const uri of uris) {
-      if (uri.scheme !== 'file') {
-        rejected.push(uri.toString());
-        continue;
-      }
-      const stat = fs.existsSync(uri.fsPath) ? fs.statSync(uri.fsPath) : undefined;
-      const candidates = stat?.isDirectory()
-        ? fs.readdirSync(uri.fsPath).map((name) => path.join(uri.fsPath, name)).filter((file) => fs.statSync(file).isFile())
-        : stat
-          ? [uri.fsPath]
-          : [];
-      for (const file of candidates) {
-        (isSupported(file) ? sources : rejected).push(isSupported(file) ? file : path.basename(file));
-      }
-    }
+    const { sources, rejected } = collectSources(uris);
     if (rejected.length > 0) {
       void vscode.window.showWarningMessage(`Skipped unsupported files (only .mp4, .pdf, .md and .txt): ${rejected.join(', ')}`);
     }
@@ -1140,28 +1119,11 @@ export class Controller implements vscode.Disposable {
     }
 
     const taken = sources.filter((source) => fs.existsSync(path.join(paths.inputs, path.basename(source))));
-    let mode: 'replace' | 'keep-both' | 'skip' = 'replace';
-    if (taken.length > 0) {
-      const answer = await vscode.window.showQuickPick(
-        [
-          { label: 'Replace', description: 'Overwrite the files already in the project', value: 'replace' as const },
-          { label: 'Keep both', description: 'Add the new ones as “name (2).ext”', value: 'keep-both' as const },
-          { label: 'Skip', description: 'Leave the existing files alone', value: 'skip' as const },
-        ],
-        { title: `${taken.length} file(s) already exist in the project`, placeHolder: taken.map((file) => path.basename(file)).join(', ') },
-      );
-      if (!answer) {
-        return;
-      }
-      mode = answer.value;
+    const mode = await this.chooseConflictMode(taken);
+    if (mode === undefined) {
+      return;
     }
-    let copied = 0;
-    for (const source of sources) {
-      const isConflict = taken.includes(source);
-      if (copyIntoInputs(source, paths.inputs, isConflict ? mode : 'replace').copied) {
-        copied += 1;
-      }
-    }
+    const copied = sources.filter((source) => copyIntoInputs(source, paths.inputs, taken.includes(source) ? mode : 'replace').copied).length;
     await this.rescan();
     if (copied > 0) {
       const next = await vscode.window.showInformationMessage(`Added ${copied} file(s) to '${this.selected}'.`, 'Process now');
@@ -1169,6 +1131,22 @@ export class Controller implements vscode.Disposable {
         await this.dispatch({ type: 'processPending' });
       }
     }
+  }
+
+  /** What to do about sources whose names are already in the inputs folder. Undefined when the user cancels. */
+  private async chooseConflictMode(taken: string[]): Promise<ConflictMode | undefined> {
+    if (taken.length === 0) {
+      return 'replace';
+    }
+    const answer = await vscode.window.showQuickPick(
+      [
+        { label: 'Replace', description: 'Overwrite the files already in the project', value: 'replace' as const },
+        { label: 'Keep both', description: 'Add the new ones as “name (2).ext”', value: 'keep-both' as const },
+        { label: 'Skip', description: 'Leave the existing files alone', value: 'skip' as const },
+      ],
+      { title: `${taken.length} file(s) already exist in the project`, placeHolder: taken.map((file) => path.basename(file)).join(', ') },
+    );
+    return answer?.value;
   }
 
   private async process(files: string[], force: boolean): Promise<void> {
@@ -1199,7 +1177,8 @@ export class Controller implements vscode.Disposable {
     await this.rescan();
     const failed = this.jobs.filter((job) => job.status === 'error');
     if (done && failed.length > 0) {
-      void vscode.window.showErrorMessage(`${failed.length} file(s) failed: ${failed.map((job) => `${job.file} (${job.error})`).join('; ')}`);
+      const details = failed.map((job) => `${job.file} (${job.error})`).join('; ');
+      void vscode.window.showErrorMessage(`${failed.length} file(s) failed: ${details}`);
     }
   }
 
@@ -1314,6 +1293,62 @@ export class Controller implements vscode.Disposable {
     }
     await this.rescan();
   }
+}
+
+type TraceIndex = NonNullable<Traceability['current']>;
+type ConflictMode = 'replace' | 'keep-both' | 'skip';
+
+/** The supported files in a project's inputs folder, each with whether its results are cached. */
+function inputsOf(paths: ReturnType<typeof resolvePaths>): Map<string, { processed: boolean }> {
+  const inputs = new Map<string, { processed: boolean }>();
+  if (!fs.existsSync(paths.inputs)) {
+    return inputs;
+  }
+  for (const item of fs.readdirSync(paths.inputs, { withFileTypes: true })) {
+    if (item.isFile() && isSupported(item.name)) {
+      inputs.set(item.name, { processed: fs.existsSync(outputsOf(paths, item.name).cache) });
+    }
+  }
+  return inputs;
+}
+
+/** How many references each input has in the traceability index (none when the index is for another project). */
+function citedCounts(index: TraceIndex | undefined): Map<string, number> {
+  return new Map(Object.entries(index?.byInput ?? {}).map(([name, refs]) => [name, refs.length]));
+}
+
+/** Split dropped URIs into the supported local files to copy and the names of the ones that are rejected. */
+function collectSources(uris: vscode.Uri[]): { sources: string[]; rejected: string[] } {
+  const sources: string[] = [];
+  const rejected: string[] = [];
+  for (const uri of uris) {
+    if (uri.scheme !== 'file') {
+      rejected.push(uri.toString());
+      continue;
+    }
+    for (const file of filesOf(uri.fsPath)) {
+      if (isSupported(file)) {
+        sources.push(file);
+      } else {
+        rejected.push(path.basename(file));
+      }
+    }
+  }
+  return { sources, rejected };
+}
+
+/** What a dropped path stands for: itself when it is a file, the files directly inside it when it is a folder. */
+function filesOf(target: string): string[] {
+  if (!fs.existsSync(target)) {
+    return [];
+  }
+  if (!fs.statSync(target).isDirectory()) {
+    return [target];
+  }
+  return fs
+    .readdirSync(target)
+    .map((name) => path.join(target, name))
+    .filter((file) => fs.statSync(file).isFile());
 }
 
 function tail(text: string, lines = 12): string {
