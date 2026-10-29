@@ -8,6 +8,16 @@ A sidebar for the Spec2Test **input-processor**: create projects, drop in specs 
 
 No clone of the repository, Python or Compose is needed.
 
+## Install
+
+Download `spec2test-<version>.vsix` from the [Releases page](https://github.com/lksnext-ai-lab/spec2test/releases) and run:
+
+```bash
+code --install-extension spec2test-<version>.vsix
+```
+
+The extension then pulls the matching images itself.
+
 ## Install (from source)
 
 ```bash
@@ -19,7 +29,7 @@ code --install-extension spec2test-0.1.0.vsix
 
 Open the **Spec2Test** icon in the activity bar. The header shows what is missing (Docker, a stopped container) and offers the next step.
 
-The extension runs `ghcr.io/lksnext-ai-lab/spec2test-input-processor:<extension version>` (and the matching web-crawler image). Until those are published, build them locally and point the image settings at them: `./scripts/verify-image.sh` builds both as `:dev`, then set `spec2test.image.inputProcessor` to `spec2test-input-processor:dev` and `spec2test.image.webCrawler` to `spec2test-web-crawler:dev`.
+The extension runs `ghcr.io/lksnext-ai-lab/spec2test-input-processor:<extension version>` (and the matching web-crawler image). To use locally built images instead, run `./scripts/verify-image.sh` (it builds both as `:dev`), then set `spec2test.image.inputProcessor` to `spec2test-input-processor:dev` and `spec2test.image.webCrawler` to `spec2test-web-crawler:dev`.
 
 API keys are stored in the OS keychain and handed to the container as environment variables when it starts; no `.env` file is written. If you used the old setup, the keys, tuning values, projects and `auth_actions.json` of the clone you have open are imported once.
 

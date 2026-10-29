@@ -65,6 +65,12 @@ dropped files into them, processes them with live progress, lets you pick the mo
 API keys, opens the original / pre-processed / cached file from one card, and starts and
 stops the Docker container for you. See [`vscode-extension/README.md`](vscode-extension/README.md).
 
+**Install:** download `spec2test-<version>.vsix` from the
+[Releases page](https://github.com/lksnext-ai-lab/spec2test/releases) and run
+`code --install-extension spec2test-<version>.vsix`. The extension then pulls the matching
+Docker images itself. Contributors can still build the images locally with
+`vscode-extension/scripts/verify-image.sh`.
+
 ## Development
 
 - Input processing: see `input-processor/README.md`
