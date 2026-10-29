@@ -69,6 +69,15 @@ export function displayName(entry: Pick<ProjectEntry, 'name' | 'title'>): string
   return entry.title?.trim() || entry.name;
 }
 
+/** `text` without the dots, dashes and underscores at its end (a loop: the equivalent regular expression backtracks). */
+function trimTrailingSeparators(text: string): string {
+  let end = text.length;
+  while (end > 0 && '-._'.includes(text[end - 1])) {
+    end -= 1;
+  }
+  return text.slice(0, end);
+}
+
 /** A folder-safe name from what the user typed: no accents, lowercase, dashes for anything else, unique among `taken`. */
 export function slugify(title: string, taken: Iterable<string> = []): string {
   const used = new Set(taken);
@@ -78,10 +87,8 @@ export function slugify(title: string, taken: Iterable<string> = []): string {
     .toLowerCase()
     .replace(/[^a-z0-9._-]+/g, '-')
     .replace(/-{2,}/g, '-')
-    .replace(/^[^a-z0-9]+/, '')
-    .replace(/[-._]+$/, '')
-    .slice(0, 48)
-    .replace(/[-._]+$/, '');
+    .replace(/^[^a-z0-9]+/, '');
+  base = trimTrailingSeparators(trimTrailingSeparators(base).slice(0, 48));
   if (!base || base === 'projects.json') {
     base = base ? 'projects-json' : 'project';
   }
