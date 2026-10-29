@@ -19,7 +19,7 @@ describe('judgeProbe (a running container that does not answer)', () => {
     const result = judgeProbe(silent, 10_000, 10_000 + UNREACHABLE_GRACE_MS, 8003);
     expect(result.docker.state).toBe('unhealthy');
     expect(result.docker.detail).toMatch(/port 8003/);
-    expect(result.docker.detail).toMatch(/Rebuild/);
+    expect(result.docker.detail).toMatch(/Update image/);
     expect(result.since).toBe(10_000);
   });
 

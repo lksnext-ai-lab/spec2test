@@ -13,9 +13,11 @@ npm run package
 code --install-extension spec2test-0.1.0.vsix --force
 ```
 
-Reload VS Code, open the `spec2test` repository folder, and use a scratch copy of a
+Reload VS Code and use a scratch copy of a
 `.mp4` (a few minutes long, ideally > 12 MB so it is split), a `.pdf` with images, a `.md`
 and a `.txt`. Have one API key ready (Google is the default provider).
+
+Until the images are published, run `./scripts/verify-image.sh` first: it builds both images as `:dev`, starts them with the extension's own `docker run` arguments on spare ports and checks the mount and the no-restart behaviour. Then set `spec2test.image.inputProcessor` to `spec2test-input-processor:dev` and `spec2test.image.webCrawler` to `spec2test-web-crawler:dev`.
 
 Optionally check the backend on its own first: `python -m pytest input-processor/tests`.
 
@@ -26,16 +28,21 @@ Optionally check the backend on its own first: `python -m pytest input-processor
    showing "Docker off"; starting Docker turns it into "The input-processor is stopped" within about 10 s.
 0. **Switching pages.** Click ⚙, switch between the four tabs, then go back with the arrow.
    *Expect:* the page never goes blank (if it ever does, it shows "Something went wrong" with **Try again**).
-2. **Start.** Press **Start input-processor** (banner or footer menu). *Expect:* "Building and
-   starting…" with a moving bar, then a green "Running" in the footer. The first build takes
-   minutes. **Footer menu → Show logs** streams the container logs.
-   *Regression to check:* with an old image already present, it must still become "Running"
-   (the compose file now sets `HOST=0.0.0.0`, and Start rebuilds). If the container is up but
-   silent, after ~30 s the footer must say "Not responding" and offer **Rebuild and restart**.
+2. **Start.** Press **Start input-processor** (banner or footer menu). *Expect:* the image is
+   pulled if it is missing (progress in *Show logs*), then a green "Running" in the footer and a
+   small "Crawler running" note next to it. **Footer menu → Show logs** streams the input-processor
+   logs, *Show web-crawler logs* the crawler's. `docker ps` lists `spec2test-input-processor` and
+   `spec2test-web-crawler`, both published on `127.0.0.1` only, and `docker inspect` of the first
+   shows no API key in its command line.
+   *Regression to check:* if the container is up but silent, after ~30 s the footer must say
+   "Not responding" and offer **Update image and restart**. After rebuilding a `:dev` image,
+   the footer says "Update available" until you restart.
 3. **Environment.** ⚙ → *Environment*, paste your key next to its provider, **Save**.
    *Expect:* the chip turns *Set* and a "Restart the input-processor…" bar appears;
-   **Apply and restart** recreates the container and the bar disappears. `.env` now has the
-   key (`grep GOOGLE_API_KEY .env`); other lines and comments are unchanged. In *Video* and
+   **Apply and restart** recreates the container and the bar disappears. The
+   container has the key (`docker exec spec2test-input-processor printenv GOOGLE_API_KEY`) while
+   `docker inspect spec2test-input-processor` shows it nowhere in the command line, and no
+   `.env` file was written. In *Video* and
    *Advanced*, change a value: an "Unsaved changes" bar offers Save / Discard.
 4. **Create a project.** **+** (or the dropdown's *New project…*) → name `demo` → *Use the default folder* (or *Choose the folder with my specs…*).
    Then open the project **⋮** menu and try *Change cache folder…* and *Open cache folder*: each acts on that one folder only.
@@ -84,7 +91,7 @@ Optionally check the backend on its own first: `python -m pytest input-processor
 
 - Reprocess redoes the model calls of the final summary; a PDF or Markdown's
   *pre-processed* file (image descriptions) is reused while its content is unchanged.
-- The extension still needs a clone of the repository (Compose file and `.env`) until it runs the published image.
+- The extension no longer needs the repository: images come from the registry (or a local `:dev` tag), keys from the OS keychain.
 
 ## Staged processing (single mount)
 

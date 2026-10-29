@@ -13,9 +13,8 @@ interface Raw {
   model_capabilities?: Record<string, Capability[]>;
 }
 
-/** Providers straight from the repo files, so the UI works while the container is stopped. */
-export function readProviders(repo: string): ProviderInfo[] {
-  const dir = path.join(repo, 'input-processor', 'src', 'providers');
+/** Providers from the catalog files bundled with the extension, so the UI works while the container is stopped. */
+export function readProviders(dir: string): ProviderInfo[] {
   const files = ['native.json', 'catalog.json'];
   const providers: ProviderInfo[] = [];
   for (const file of files) {

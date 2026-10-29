@@ -13,7 +13,7 @@ export function MainView({ state, openSettings }: { state: AppState; openSetting
   const project = projects.find((item) => item.name === selected);
   const running = jobs.some((job) => job.status === 'running' || job.status === 'queued');
   const pending = files.filter((file) => file.state !== 'cached').length;
-  const canProcess = !docker.busy && docker.state !== 'no-repo' && docker.state !== 'not-installed' && docker.state !== 'daemon-down';
+  const canProcess = !docker.busy && docker.state !== 'not-installed' && docker.state !== 'daemon-down';
   const fix = primaryAction(state);
   const blocked = docker.state !== 'running' && docker.state !== 'starting' && !docker.busy;
   const newProject = () => send({ type: 'createProject' });
@@ -36,7 +36,7 @@ export function MainView({ state, openSettings }: { state: AppState; openSetting
             emptyText="No project matches"
           />
         </div>
-        <button className="icon-btn" title="New project" aria-label="New project" onClick={newProject} disabled={state.docker.state === 'no-repo'}>
+        <button className="icon-btn" title="New project" aria-label="New project" onClick={newProject}>
           <Icon name="plus" />
         </button>
         <button className="icon-btn" title="Settings" aria-label="Settings" onClick={openSettings}>
@@ -49,8 +49,8 @@ export function MainView({ state, openSettings }: { state: AppState; openSetting
           <div className={`notice notice-${docker.state === 'stopped' ? 'info' : 'warn'}`}>
             <Icon name="alert" />
             <div className="notice-body">
-              <strong>{docker.state === 'stopped' ? 'The input-processor is stopped' : docker.state === 'unhealthy' ? 'The input-processor is not responding' : docker.state === 'no-repo' ? 'spec2test folder not found' : docker.state === 'not-installed' ? 'Docker is not installed' : 'Docker is not running'}</strong>
-              <span>{docker.detail ?? (docker.state === 'stopped' ? 'Start it to process your files.' : docker.state === 'no-repo' ? 'Point Spec2Test at your clone of the repository.' : docker.state === 'not-installed' ? 'Spec2Test runs its processor in Docker.' : 'Start Docker Desktop, then it connects on its own.')}</span>
+              <strong>{docker.state === 'stopped' ? 'The input-processor is stopped' : docker.state === 'unhealthy' ? 'The input-processor is not responding' : docker.state === 'not-installed' ? 'Docker is not installed' : 'Docker is not running'}</strong>
+              <span>{docker.detail ?? (docker.state === 'stopped' ? 'Start it to process your files.' : docker.state === 'not-installed' ? 'Spec2Test runs its processor in Docker.' : 'Start Docker Desktop, then it connects on its own.')}</span>
               <button className="primary" onClick={fix.run}>
                 {fix.label}
               </button>
@@ -59,7 +59,7 @@ export function MainView({ state, openSettings }: { state: AppState; openSetting
         ) : null}
 
         {!project ? (
-          docker.state === 'no-repo' ? null : (
+          (
             <div className="empty">
               <Icon name="folder" size={30} />
               <h3>Create your first project</h3>

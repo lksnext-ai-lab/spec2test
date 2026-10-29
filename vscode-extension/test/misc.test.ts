@@ -2,21 +2,12 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseComposePs } from '../src/docker';
 import { parseProcessResult, toolText } from '../src/mcp';
 import { readProviders } from '../src/core/providers';
 import { findRepo, isRepo } from '../src/repo';
 import { TUNING } from '../src/core/tuning';
 
 const REPO = path.resolve(__dirname, '..', '..');
-
-describe('docker compose ps parsing', () => {
-  it('handles NDJSON, arrays and empty output', () => {
-    expect(parseComposePs('{"State":"running"}\n{"State":"exited"}\n')).toHaveLength(2);
-    expect(parseComposePs('[{"State":"running"}]')[0].State).toBe('running');
-    expect(parseComposePs('  \n')).toEqual([]);
-  });
-});
 
 describe('MCP results', () => {
   it('extracts text and interprets process_file answers', () => {
@@ -41,8 +32,8 @@ describe('repository detection', () => {
   });
 });
 
-describe('provider metadata read from the repo files', () => {
-  const providers = readProviders(REPO);
+describe('provider metadata read from the catalog files', () => {
+  const providers = readProviders(path.join(REPO, 'input-processor', 'src', 'providers'));
 
   it('lists native and catalog providers with their key variables', () => {
     expect(providers.map((p) => p.name)).toEqual(['anthropic', 'deepseek', 'google_genai', 'openai', 'openrouter', 'qwen']);

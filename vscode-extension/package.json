@@ -71,10 +71,6 @@
         "title": "Spec2Test: Add files to the project…"
       },
       {
-        "command": "spec2test.chooseRepo",
-        "title": "Spec2Test: Choose the spec2test repository folder…"
-      },
-      {
         "command": "spec2test.openWalkthrough",
         "title": "Spec2Test: Getting started"
       },
@@ -86,20 +82,40 @@
     "configuration": {
       "title": "Spec2Test",
       "properties": {
-        "spec2test.repoPath": {
-          "type": "string",
-          "default": "",
-          "description": "Folder of the spec2test repository (the one with docker-compose.yaml). Leave empty to detect it from the open workspace."
-        },
         "spec2test.port": {
           "type": "number",
           "default": 8003,
-          "description": "Host port of the input-processor (docker-compose maps 8003 to the container's 8000)."
+          "description": "Host port of the input-processor container (it listens on 8000 inside)."
         },
         "spec2test.autoStartService": {
           "type": "boolean",
           "default": false,
           "description": "Start the input-processor container automatically when the sidebar opens."
+        },
+        "spec2test.image.inputProcessor": {
+          "type": "string",
+          "default": "",
+          "description": "Docker image for the input-processor. Leave empty to use the image published for this version of the extension; set it to a local tag (for example spec2test-input-processor:dev) when developing."
+        },
+        "spec2test.image.webCrawler": {
+          "type": "string",
+          "default": "",
+          "description": "Docker image for the web crawler. Leave empty to use the image published for this version of the extension."
+        },
+        "spec2test.webCrawler.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Also run the web-crawler container, which the Gherkin-Generator agent uses to explore the application."
+        },
+        "spec2test.webCrawler.port": {
+          "type": "number",
+          "default": 8000,
+          "description": "Host port of the web-crawler container."
+        },
+        "spec2test.gpu": {
+          "type": "boolean",
+          "default": false,
+          "description": "Give the input-processor container access to NVIDIA GPUs (docker run --gpus all)."
         }
       }
     },
@@ -112,23 +128,15 @@
           {
             "id": "docker",
             "title": "Install and start Docker",
-            "description": "Spec2Test runs the input-processor in Docker. The sidebar header tells you what is missing and offers the next step.\n[Open Spec2Test](command:spec2test.focus)",
+            "description": "Spec2Test runs in Docker containers that the extension pulls and starts for you. The sidebar footer tells you what is missing and offers the next step.\n[Open Spec2Test](command:spec2test.focus)",
             "media": {
               "markdown": "media/walkthrough/docker.md"
             }
           },
           {
-            "id": "repo",
-            "title": "Choose the spec2test folder",
-            "description": "Point the extension at your clone of the spec2test repository.\n[Choose folder](command:spec2test.chooseRepo)",
-            "media": {
-              "markdown": "media/walkthrough/repo.md"
-            }
-          },
-          {
             "id": "keys",
             "title": "Add an API key",
-            "description": "Open the Environment section and paste the key of the LLM provider you want to use. Keys are kept in your OS keychain.",
+            "description": "Open the Environment section and paste the key of the LLM provider you want to use. Keys are kept in your OS keychain and handed to the container when it starts.",
             "media": {
               "markdown": "media/walkthrough/keys.md"
             }

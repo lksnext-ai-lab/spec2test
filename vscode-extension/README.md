@@ -1,11 +1,12 @@
 # Spec2Test for VS Code
 
-A sidebar for the Spec2Test **input-processor**: create projects, drop in specs and recordings, process them with live progress, choose the LLMs and API keys, and open the original, pre-processed and cached files from one card. The extension starts and stops the Docker container for you.
+A sidebar for the Spec2Test **input-processor**: create projects, drop in specs and recordings, process them with live progress, choose the LLMs and API keys, and open the original, pre-processed and cached files from one card. The extension pulls the images and starts and stops the Docker containers (input-processor and web crawler) for you.
 
 ## Requirements
 
 - Docker (Docker Desktop on macOS/Windows, Docker Engine on Linux)
-- A clone of the `spec2test` repository
+
+No clone of the repository, Python or Compose is needed.
 
 ## Install (from source)
 
@@ -16,18 +17,22 @@ npm run package        # creates spec2test-<version>.vsix
 code --install-extension spec2test-0.1.0.vsix
 ```
 
-Open the **Spec2Test** icon in the activity bar. The header shows what is missing (Docker, the repo folder, a stopped container) and offers the next step.
+Open the **Spec2Test** icon in the activity bar. The header shows what is missing (Docker, a stopped container) and offers the next step.
+
+The extension runs `ghcr.io/lksnext-ai-lab/spec2test-input-processor:<extension version>` (and the matching web-crawler image). Until those are published, build them locally and point the image settings at them: `./scripts/verify-image.sh` builds both as `:dev`, then set `spec2test.image.inputProcessor` to `spec2test-input-processor:dev` and `spec2test.image.webCrawler` to `spec2test-web-crawler:dev`.
+
+API keys are stored in the OS keychain and handed to the container as environment variables when it starts; no `.env` file is written. If you used the old setup, the keys, tuning values, projects and `auth_actions.json` of the clone you have open are imported once.
 
 ## What it does
 
 **Main page**
 
 - **Top bar:** a searchable project dropdown (with *New project…*), a **+** button and the **⚙** settings button.
-- **Project menu (⋮):** *Open* and *Change…* entries for each of the three folders (inputs, cache, pre-processed), use the project for agents, and remove it (there is also a trash button next to the menu). Removing asks whether to **detach only** or also **move the project's inputs and results to the trash**; other files in those folders are never touched. Changing a folder recreates the container (the folders are bind mounts) and does not move existing files.
+- **Project menu (⋮):** *Open* and *Change…* entries for each of the three folders (inputs, cache, pre-processed), use the project for agents, and remove it (there is also a trash button next to the menu). Removing asks whether to **detach only** or also **move the project's inputs and results to the trash**; other files in those folders are never touched. Changing a folder does not move existing files.
 - **Drop files** (a small native section above the page): drag files onto it from Finder/Explorer or from the VS Code Explorer, or click it to choose files. It has to be native because VS Code webviews cannot receive drops from the Explorer.
 - **Files:** an *Add files…* button, then a card per file with its type icon, status, progress and actions:
   **Original**, **Pre-processed** and **Result** open the file in VS Code; the icons preview the result, show extracted images, compare with earlier results, process / reprocess and remove (to the trash).
-- **Footer:** the Docker status with a small menu to start, stop, restart, rebuild the image and show the logs.
+- **Footer:** the container status with a small menu to start, stop, restart, update the image and show the logs. *Update available* appears when the running container does not use the image this version of the extension wants.
 
 **Settings (⚙)** has four sections: **Models** (text and vision model, per project or for all projects), **Environment** (API keys), **Video** (how recordings are split) and **Advanced** (logging, the spec2test folder, rebuild, logs).
 
@@ -74,9 +79,13 @@ What you get:
 
 | Setting | Default | |
 | --- | --- | --- |
-| `spec2test.repoPath` | *(auto)* | Folder of the spec2test repository |
 | `spec2test.port` | `8003` | Host port of the input-processor |
-| `spec2test.autoStartService` | `false` | Start the container when VS Code opens |
+| `spec2test.autoStartService` | `false` | Start the containers when VS Code opens |
+| `spec2test.image.inputProcessor` | *(published image)* | Image to run; set a local tag when developing |
+| `spec2test.image.webCrawler` | *(published image)* | Same, for the web crawler |
+| `spec2test.webCrawler.enabled` | `true` | Also run the web-crawler container |
+| `spec2test.webCrawler.port` | `8000` | Host port of the web crawler |
+| `spec2test.gpu` | `false` | Pass `--gpus all` to the input-processor |
 
 ## Development
 
