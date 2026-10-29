@@ -30,7 +30,10 @@ export function dataRoot(): string {
 }
 
 export interface ProjectEntry {
+  /** Folder-safe identifier: the folder under the data folder, the agents' header, the server's key. */
   name: string;
+  /** What the user typed and sees. Defaults to `name`. */
+  title?: string;
   /** Host folder with the files to process. Left untouched; files are staged in the work area. */
   inputs?: string;
   /** Host folder for the processed results. Defaults to `<inputs>/.spec2test/cache`. */
@@ -62,6 +65,33 @@ export interface WorkArea {
 
 export class ProjectError extends Error {}
 
+export function displayName(entry: Pick<ProjectEntry, 'name' | 'title'>): string {
+  return entry.title?.trim() || entry.name;
+}
+
+/** A folder-safe name from what the user typed: no accents, lowercase, dashes for anything else, unique among `taken`. */
+export function slugify(title: string, taken: Iterable<string> = []): string {
+  const used = new Set(taken);
+  let base = title
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^[^a-z0-9]+/, '')
+    .replace(/[-._]+$/, '')
+    .slice(0, 48)
+    .replace(/[-._]+$/, '');
+  if (!base || base === 'projects.json') {
+    base = base ? 'projects-json' : 'project';
+  }
+  let candidate = base;
+  for (let n = 2; used.has(candidate); n += 1) {
+    candidate = `${base}-${n}`;
+  }
+  return candidate;
+}
+
 export function validateName(name: string): string | undefined {
   if (name === 'projects.json') {
     return 'That name is reserved for the configuration file.';
@@ -83,15 +113,21 @@ export function workAreaOf(root: string, name: string): WorkArea {
 }
 
 /**
- * Host-side folders of a project, as the user sees them: `inputs` and `cache` are the user's
- * folders, `preprocessed` always lives in the work area. Without an inputs folder the project is
- * "managed": it lives entirely in the work area and nothing is staged or copied back.
+ * Host-side folders of a project, as the user sees them: all three are the user's folders (the
+ * results in `<inputs>/.spec2test`). Without an inputs folder the project is "managed": it lives
+ * entirely in the work area and nothing is staged or copied back.
  */
 export function resolvePaths(entry: ProjectEntry, root: string): ProjectPaths {
   const work = workAreaOf(root, entry.name);
   const inputs = resolvePath(entry.inputs, work.inputs, root);
-  const cacheFallback = inputs === path.resolve(work.inputs) ? work.cache : path.join(inputs, PROJECT_DATA_DIRNAME, 'cache');
-  return { inputs, preprocessed: work.preprocessed, cache: resolvePath(entry.cache, cacheFallback, root) };
+  const managed = inputs === path.resolve(work.inputs);
+  const dataDir = path.join(inputs, PROJECT_DATA_DIRNAME);
+  return {
+    inputs,
+    // Both results live next to the user's files: they cost LLM calls and must survive the work area.
+    preprocessed: managed ? work.preprocessed : path.join(dataDir, 'preprocessed'),
+    cache: resolvePath(entry.cache, managed ? work.cache : path.join(dataDir, 'cache'), root),
+  };
 }
 
 /** The features folder, or undefined when the project has none (there is no default). */

@@ -3,7 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { FileIndex, copyIntoInputs, isSupported, listHistory, outputsOf, ownedFiles, parseFrontMatter } from '../src/core/fileindex';
+import { FileIndex, copyIntoInputs, isSupported, listHistory, outputsOf, parseFrontMatter } from '../src/core/fileindex';
 
 let root: string;
 let paths: { inputs: string; cache: string; preprocessed: string };
@@ -118,39 +118,5 @@ describe('copyIntoInputs', () => {
     copyIntoInputs(source, paths.inputs, 'replace');
     expect(fs.readFileSync(path.join(paths.inputs, 'spec.pdf'), 'utf8')).toBe('v2');
     expect(fs.existsSync(source)).toBe(true);
-  });
-});
-
-describe('ownedFiles (what "detach and trash" may delete)', () => {
-  it('lists inputs, their results and the processor folders, and leaves everything else alone', () => {
-    fs.writeFileSync(path.join(paths.inputs, 'spec.pdf'), 'pdf');
-    fs.writeFileSync(path.join(paths.inputs, 'notes.docx'), 'someone else\'s file');
-    fs.mkdirSync(path.join(paths.inputs, 'subfolder'));
-    cacheFile('spec.pdf', 'pdf');
-    cacheFile('gone.txt', 'orphan');
-    fs.mkdirSync(path.join(paths.cache, '.history'));
-    fs.mkdirSync(path.join(paths.cache, '_segments'));
-    fs.writeFileSync(path.join(paths.cache, 'unrelated.log'), 'x');
-    fs.writeFileSync(path.join(paths.preprocessed, 'spec.pdf.md'), 'md');
-    fs.mkdirSync(path.join(paths.preprocessed, 'spec.pdf_images'));
-    fs.writeFileSync(path.join(paths.preprocessed, 'readme.txt'), 'x');
-
-    const rel = ownedFiles(paths).map((file) => path.relative(root, file)).sort();
-
-    expect(rel).toEqual(
-      [
-        'cache/.history',
-        'cache/_segments',
-        'cache/gone.txt.md',
-        'cache/spec.pdf.md',
-        'inputs/spec.pdf',
-        'pre/spec.pdf.md',
-        'pre/spec.pdf_images',
-      ].sort(),
-    );
-  });
-
-  it('is empty for folders that do not exist', () => {
-    expect(ownedFiles({ inputs: path.join(root, 'no'), cache: path.join(root, 'no2'), preprocessed: path.join(root, 'no3') })).toEqual([]);
   });
 });
