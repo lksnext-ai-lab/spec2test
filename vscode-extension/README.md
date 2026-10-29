@@ -23,6 +23,14 @@ The extension runs `ghcr.io/lksnext-ai-lab/spec2test-input-processor:<extension 
 
 API keys are stored in the OS keychain and handed to the container as environment variables when it starts; no `.env` file is written. If you used the old setup, the keys, tuning values, projects and `auth_actions.json` of the clone you have open are imported once.
 
+## Where things live, on each OS
+
+The **data folder** (`~/.spec2test` by default: `/Users/you/.spec2test` on macOS, `C:\Users\you\.spec2test` on Windows, `/home/you/.spec2test` on Linux) holds `projects.json` and a disposable work area per project. Change it with *Spec2Test: Change the data folder…* or **Settings → Advanced → Data folder**; the extension offers to copy your projects along and recreates the container with the new mount. Your input folders and their results (`<inputs>/.spec2test/cache`) are never moved.
+
+- **macOS:** a data folder outside your home must be shared with Docker Desktop (Settings → Resources → File sharing).
+- **Windows:** paths are passed to Docker with forward slashes (`C:/Users/you/.spec2test`). With the WSL2 backend every drive works. Large videos are copied with a progress percentage because NTFS has no instant clone.
+- **Linux:** with native Docker Engine the input-processor runs as your user (`--user uid:gid`), so files it writes are yours; its model cache moves to `<data folder>/.hf-cache`. Files an earlier run left owned by root are handed back to you automatically on the next start. Docker Desktop and rootless Docker are detected and run as before.
+
 ## Add the Gherkin-Generator to your project
 
 The **feature** button in the header (or *Spec2Test: Add the Gherkin-Generator to this project*) copies the agent into the folder you have open, for the tools you pick:
@@ -98,6 +106,7 @@ What you get:
 | `spec2test.webCrawler.enabled` | `true` | Also run the web-crawler container |
 | `spec2test.webCrawler.port` | `8000` | Host port of the web crawler |
 | `spec2test.gpu` | `false` | Pass `--gpus all` to the input-processor |
+| `spec2test.dataFolder` | *(empty = `~/.spec2test`)* | Where `projects.json` and the work areas live; change it with *Spec2Test: Change the data folder…* |
 
 ## Development
 

@@ -79,6 +79,10 @@
         "title": "Spec2Test: Getting started"
       },
       {
+        "command": "spec2test.changeDataFolder",
+        "title": "Spec2Test: Change the data folder…"
+      },
+      {
         "command": "spec2test.revealInput",
         "title": "Spec2Test: Show input in the sidebar"
       }
@@ -120,6 +124,11 @@
           "type": "boolean",
           "default": false,
           "description": "Give the input-processor container access to NVIDIA GPUs (docker run --gpus all)."
+        },
+        "spec2test.dataFolder": {
+          "type": "string",
+          "default": "",
+          "description": "Folder where Spec2Test keeps projects.json and the work area of every project (the folder the container mounts). Leave empty for ~/.spec2test. Use 'Spec2Test: Change the data folder…' to move your projects along with it."
         }
       }
     },

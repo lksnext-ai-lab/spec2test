@@ -41,6 +41,13 @@ function run(args: string[], timeoutMs = 60_000): Promise<Result> {
   });
 }
 
+/** What `docker info` says about the engine, to decide whether containers must run as the user. */
+export async function engineInfo(): Promise<{ operatingSystem: string; securityOptions: string }> {
+  const result = await run(['info', '--format', '{{.OperatingSystem}}|{{.SecurityOptions}}'], 10_000);
+  const [operatingSystem = '', securityOptions = ''] = result.code === 0 ? result.stdout.trim().split('|') : [];
+  return { operatingSystem, securityOptions };
+}
+
 export async function isReachable(port: number, timeoutMs = 2000): Promise<boolean> {
   try {
     // Any HTTP answer (even 4xx) proves the server is listening.
@@ -58,6 +65,8 @@ export interface ServiceConfig {
   image: string;
   port: number;
   spec(image: string): Promise<RunSpec>;
+  /** Runs after the image is present and before the container is created; a failure stops the start. */
+  prepare?(spec: RunSpec): Promise<Result | undefined>;
   /** Secret values for the bare `-e NAME` arguments. */
   secretValues(): Promise<Record<string, string>>;
 }
@@ -153,8 +162,17 @@ export class DockerService {
     }
     const config = this.config();
     const spec = await config.spec(config.image);
+    const prepared = await config.prepare?.(spec);
+    if (prepared && prepared.code !== 0) {
+      return prepared;
+    }
     await this.stream(['rm', '-f', spec.container]);
     return this.stream(buildRunArgs(spec), await config.secretValues());
+  }
+
+  /** Run one docker command to completion, logging it like the others. */
+  runOnce(args: string[]): Promise<Result> {
+    return this.stream(args);
   }
 
   down(): Promise<Result> {

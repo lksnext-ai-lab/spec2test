@@ -24,6 +24,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('spec2test.startService', () => controller.startService()),
     vscode.commands.registerCommand('spec2test.stopService', () => controller.dockerAction('stop')),
     vscode.commands.registerCommand('spec2test.showLogs', () => controller.dockerAction('logs')),
+    vscode.commands.registerCommand('spec2test.changeDataFolder', () => controller.changeDataFolder()),
     vscode.commands.registerCommand('spec2test.installAgents', () => controller.installAgents()),
     vscode.commands.registerCommand('spec2test.addFiles', () => controller.addFilesDialog()),
     vscode.commands.registerCommand('spec2test.openWalkthrough', () =>

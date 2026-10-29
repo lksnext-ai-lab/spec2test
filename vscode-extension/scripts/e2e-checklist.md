@@ -87,6 +87,12 @@ Optionally check the backend on its own first: `python -m pytest input-processor
 15. **Stop.** Footer menu → **Stop**. *Expect:* "Input-processor is stopped"; files and results
     remain on disk.
 
+## Data folder
+
+1. ⚙ → *Advanced* → **Data folder → Change…**, pick an empty folder outside `~/.spec2test`. *Expect:* a dialog offering *Copy and switch*; after it, the footer shows the container restarting, `projects.json` and the project work areas are in the new folder, your input folders are untouched, and processing a file works.
+2. **Default** returns to `~/.spec2test`. Editing `spec2test.dataFolder` in settings by hand has the same effect.
+3. Linux only (native Docker Engine): `docker inspect spec2test-input-processor --format '{{.Config.User}}'` prints your `uid:gid`; after processing a file, `ls -ln <data folder>/<project>/cache` shows your uid, and `<data folder>/.hf-cache` exists. If the folder held root-owned files from an earlier run, the output panel shows "Giving you back the files…" once.
+
 ## Gherkin-Generator installer
 
 1. Open an empty folder with a project created. Click the **feature** button in the header. *Expect:* a picker with Copilot, Claude Code and Codex; choose all three.

@@ -1,8 +1,8 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { describe, expect, it } from 'vitest';
-import { ProjectError, addProject, readConfig, removeProject, resolveFeatures, resolvePaths, setModel, updateProject, validateName, workAreaOf, writeConfig } from '../src/core/projects';
+import { afterEach, describe, expect, it } from 'vitest';
+import { dataRoot, defaultDataRoot, setDataRoot, ProjectError, addProject, readConfig, removeProject, resolveFeatures, resolvePaths, setModel, updateProject, validateName, workAreaOf, writeConfig } from '../src/core/projects';
 
 describe('validateName', () => {
   it.each(['shop-app', 'a', 'app.v2', 'x_1'])('accepts %s', (name) => expect(validateName(name)).toBeUndefined());
@@ -102,5 +102,25 @@ describe('resolveFeatures', () => {
   it('is kept when other fields of the project change', () => {
     const config = updateProject({ projects: [{ name: 'a', features: '/f' }] }, 'a', { cache: '/c' });
     expect(config.projects[0].features).toBe('/f');
+  });
+});
+
+describe('dataRoot', () => {
+  afterEach(() => setDataRoot(''));
+
+  it('is the default until a folder is chosen, and expands ~', () => {
+    expect(dataRoot()).toBe(defaultDataRoot());
+    setDataRoot('~/spec2test-data');
+    expect(dataRoot()).toBe(path.join(os.homedir(), 'spec2test-data'));
+    setDataRoot(path.resolve('/srv/spec2test'));
+    expect(dataRoot()).toBe(path.resolve('/srv/spec2test'));
+  });
+
+  it('ignores relative paths and goes back to the default when cleared', () => {
+    setDataRoot('relative/folder');
+    expect(dataRoot()).toBe(defaultDataRoot());
+    setDataRoot(path.resolve('/srv/spec2test'));
+    setDataRoot('');
+    expect(dataRoot()).toBe(defaultDataRoot());
   });
 });
