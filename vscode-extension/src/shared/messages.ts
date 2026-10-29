@@ -62,6 +62,7 @@ export type ToHost =
   | { type: 'removeProject'; name: string }
   | { type: 'projectFolder'; name: string; which: ProjectFolder; action: 'open' | 'change' }
   | { type: 'useInCopilot'; name: string }
+  | { type: 'installAgents' }
   | { type: 'docker'; action: 'install' | 'startDocker' | 'start' | 'stop' | 'restart' | 'rebuild' | 'logs' | 'crawlerLogs' }
   | { type: 'addFiles' }
   | { type: 'process'; files: string[]; force: boolean }

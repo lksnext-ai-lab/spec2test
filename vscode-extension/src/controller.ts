@@ -9,6 +9,7 @@ import { judgeProbe } from './core/health';
 import { EnvStore } from './envstore';
 import { FileIndex, copyIntoInputs, isSupported, outputsOf, ownedFiles } from './core/fileindex';
 import { JobQueue, type RunHooks } from './core/jobqueue';
+import { TARGETS, McpFileError, applyPlan, installedMcpFiles, loadBundle, planInstall, retargetProject, type AgentTarget, type McpSettings } from './core/agents';
 import { migrateLegacy } from './core/migrate';
 import {
   ProjectError,
@@ -37,6 +38,8 @@ import type { FileCard, Job, ProviderInfo, OrphanCard } from './shared/types';
 const SELECTED_KEY = 'spec2test.selectedProject';
 const PENDING_KEY = 'spec2test.envPending';
 const FOLDER_LABEL: Record<ProjectFolder, string> = { inputs: 'Inputs', cache: 'Cache', preprocessed: 'Pre-processed', features: 'Features' };
+const AGENTS_KEY = 'spec2test.agents';
+const AGENTS_PROMPT_KEY = 'spec2test.agentsPrompt';
 const DOCKER_INSTALL_URL = 'https://docs.docker.com/get-docker/';
 
 export class Controller implements vscode.Disposable {
@@ -190,6 +193,7 @@ export class Controller implements vscode.Disposable {
     if (vscode.workspace.getConfiguration('spec2test').get<boolean>('autoStartService')) {
       void this.startService();
     }
+    setTimeout(() => void this.offerAgents(), 4000);
   }
 
   dispose(): void {
@@ -412,9 +416,12 @@ export class Controller implements vscode.Disposable {
       case 'ready':
         this.post();
         return;
+      case 'installAgents':
+        return this.installAgents();
       case 'selectProject':
         await this.context.workspaceState.update(SELECTED_KEY, message.name);
         this.watchProject();
+        await this.useInCopilot(message.name, false);
         return this.rescan();
       case 'createProject':
         return this.createProject();
@@ -699,29 +706,130 @@ export class Controller implements vscode.Disposable {
     await this.rescan();
   }
 
-  private async useInCopilot(name: string): Promise<void> {
-    const folder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (!folder) {
+  // --- agents (Gherkin-Generator for Copilot, Claude Code and Codex) -------------------------------
+
+  private agentSettings(project: string | undefined): McpSettings {
+    return {
+      project,
+      inputProcessorPort: this.port,
+      webCrawler: this.crawlerEnabled ? { port: this.crawlerPort } : undefined,
+    };
+  }
+
+  private async pickWorkspace(): Promise<string | undefined> {
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    if (folders.length <= 1) {
+      return folders[0]?.uri.fsPath;
+    }
+    const picked = await vscode.window.showQuickPick(
+      folders.map((folder) => ({ label: folder.name, description: folder.uri.fsPath, value: folder.uri.fsPath })),
+      { title: 'Add the Gherkin-Generator to which folder?' },
+    );
+    return picked?.value;
+  }
+
+  /** Copy the agent, skill and MCP settings into the open workspace for the tools the user picks. */
+  async installAgents(): Promise<void> {
+    const workspace = await this.pickWorkspace();
+    if (!workspace) {
+      void vscode.window.showWarningMessage('Open a folder first: the Gherkin-Generator is added to your project.');
       return;
     }
-    const file = path.join(folder, '.vscode', 'mcp.json');
-    if (!fs.existsSync(file)) {
-      void vscode.window.showInformationMessage(`No .vscode/mcp.json found in ${folder}.`);
+    const previous = this.context.workspaceState.get<{ targets: AgentTarget[] }>(AGENTS_KEY);
+    const picks = await vscode.window.showQuickPick(
+      TARGETS.map((target) => ({
+        label: target.label,
+        description: target.detail,
+        target: target.id,
+        picked: previous ? previous.targets.includes(target.id) : target.id !== 'codex' || fs.existsSync(path.join(workspace, '.codex')),
+      })),
+      { canPickMany: true, title: 'Add the Gherkin-Generator for…', placeHolder: 'Choose the tools you use in this project' },
+    );
+    if (!picks || picks.length === 0) {
       return;
     }
-    let json: { servers?: Record<string, { headers?: Record<string, string> }> };
+    const targets = picks.map((pick) => pick.target);
+    const project = this.selected;
     try {
-      json = JSON.parse(fs.readFileSync(file, 'utf8'));
-    } catch {
-      throw new Error(`${file} could not be parsed (comments are not supported here). Edit the X-Spec2Test-Project header by hand.`);
+      const bundle = loadBundle(path.join(this.context.extensionPath, 'dist', 'agents'));
+      const plan = planInstall(workspace, targets, bundle, this.agentSettings(project));
+      const changed = plan.filter((item) => item.status === 'differs' && !item.merged);
+      let overwrite = false;
+      if (changed.length > 0) {
+        const list = changed.map((item) => path.relative(workspace, item.file)).join('\n');
+        const answer = await vscode.window.showWarningMessage(
+          `${changed.length} file(s) in your project differ from the ones shipped with Spec2Test.`,
+          { modal: true, detail: `${list}\n\nOverwrite replaces them; Keep mine leaves them as they are.` },
+          'Overwrite',
+          'Keep mine',
+        );
+        if (!answer) {
+          return;
+        }
+        overwrite = answer === 'Overwrite';
+      }
+      const { written, skipped } = applyPlan(plan, overwrite);
+      await this.context.workspaceState.update(AGENTS_KEY, { version: this.version, targets });
+      const notes = [
+        `${written.length} file(s) written${skipped.length ? `, ${skipped.length} kept` : ''}.`,
+        project ? `The agents use project '${project}'.` : 'Create a project, then run this again so the agents know which one to use.',
+        targets.includes('copilot') ? 'Copilot: start the servers from .vscode/mcp.json.' : '',
+        targets.includes('claude') ? 'Claude Code: approve the project servers on first use.' : '',
+        targets.includes('codex') ? 'Codex: trust the project so it reads .codex/config.toml.' : '',
+        'The web-crawler agent also needs Node.js (npx) for the Playwright server.',
+      ].filter(Boolean);
+      void vscode.window.showInformationMessage(notes.join(' '));
+    } catch (error) {
+      void vscode.window.showErrorMessage(error instanceof McpFileError || error instanceof Error ? `Could not add the Gherkin-Generator: ${error.message}` : String(error));
     }
-    const server = json.servers?.['input-processor'];
-    if (!server) {
-      throw new Error(`${file} has no 'input-processor' server.`);
+  }
+
+  /** Point the installed agent configs at `name`. Quiet when nothing is installed unless `report` is set. */
+  private async useInCopilot(name: string, report = true): Promise<void> {
+    const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!workspace) {
+      return;
     }
-    server.headers = { ...server.headers, 'X-Spec2Test-Project': name };
-    fs.writeFileSync(file, JSON.stringify(json, null, '\t') + '\n', 'utf8');
-    void vscode.window.showInformationMessage(`Agents now use project '${name}' (${path.relative(folder, file)}).`);
+    if (installedMcpFiles(workspace).length === 0) {
+      if (report) {
+        const answer = await vscode.window.showInformationMessage('The Gherkin-Generator is not in this project yet.', 'Add it');
+        if (answer) {
+          await this.installAgents();
+        }
+      }
+      return;
+    }
+    try {
+      const changed = retargetProject(workspace, this.agentSettings(name));
+      if (report || changed.length > 0) {
+        void vscode.window.showInformationMessage(`Agents now use project '${name}' (${changed.map((file) => path.relative(workspace, file)).join(', ') || 'already set'}).`);
+      }
+    } catch (error) {
+      throw new Error(`Could not update the agent settings: ${(error as Error).message}`);
+    }
+  }
+
+  /** Once per workspace: offer the agent, or an update after the extension changed. */
+  private async offerAgents(): Promise<void> {
+    const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!workspace || this.context.workspaceState.get<string>(AGENTS_PROMPT_KEY) === 'never') {
+      return;
+    }
+    const installed = this.context.workspaceState.get<{ version: string }>(AGENTS_KEY);
+    if (installed?.version === this.version) {
+      return;
+    }
+    const answer = await vscode.window.showInformationMessage(
+      installed ? 'A newer Gherkin-Generator is available for this project.' : 'Add the Gherkin-Generator agent to this project?',
+      installed ? 'Update' : 'Add',
+      'Not now',
+      'Never for this project',
+    );
+    if (answer === 'Update' || answer === 'Add') {
+      await this.installAgents();
+    } else if (answer === 'Never for this project') {
+      await this.context.workspaceState.update(AGENTS_PROMPT_KEY, 'never');
+    }
   }
 
   // --- docker ------------------------------------------------------------------------------

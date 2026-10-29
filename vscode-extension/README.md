@@ -23,6 +23,18 @@ The extension runs `ghcr.io/lksnext-ai-lab/spec2test-input-processor:<extension 
 
 API keys are stored in the OS keychain and handed to the container as environment variables when it starts; no `.env` file is written. If you used the old setup, the keys, tuning values, projects and `auth_actions.json` of the clone you have open are imported once.
 
+## Add the Gherkin-Generator to your project
+
+The **feature** button in the header (or *Spec2Test: Add the Gherkin-Generator to this project*) copies the agent into the folder you have open, for the tools you pick:
+
+| Tool | Files written |
+| --- | --- |
+| GitHub Copilot | `.github/agents/gherkin-generator.agent.md`, `web-crawler.agent.md`, and the servers in `.vscode/mcp.json` |
+| Claude Code | `.claude/skills/gherkin-generator/` (the unpacked skill), `.claude/agents/web-crawler.md`, and the servers in `.mcp.json` |
+| Codex | `.agents/skills/gherkin-generator/` and a marked block in `.codex/config.toml` |
+
+The servers point at the containers (`input-processor` with the selected project in the `X-Spec2Test-Project` header, `web-crawler`) plus Playwright (`npx @playwright/mcp@latest`, needs Node.js). Existing configuration is merged, never replaced: other servers stay, and an existing `playwright` entry is kept. A file with comments cannot be merged and is reported instead of damaged. Agent files you have edited are not overwritten unless you say so. Switching project in the sidebar (or *Use this project for agents*) updates the header in every config that has the Spec2Test servers. The first time you open a folder the extension asks whether to add the agent, and offers an update when a newer version ships.
+
 ## What it does
 
 **Main page**
