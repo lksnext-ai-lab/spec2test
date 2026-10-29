@@ -113,6 +113,76 @@ export function listHistory(cacheDir: string, name: string): HistoryItem[] {
     });
 }
 
+/** The supported input file names directly inside `inputs`, sorted with localeCompare. */
+export function listInputNames(inputs: string): string[] {
+  if (!fs.existsSync(inputs)) {
+    return [];
+  }
+  return fs
+    .readdirSync(inputs, { withFileTypes: true })
+    .filter((item) => item.isFile() && isSupported(item.name))
+    .map((item) => item.name)
+    .sort((a, b) => a.localeCompare(b));
+}
+
+export interface InputMatch {
+  state: CacheState;
+  /** The cache entry supplying the metadata: the input's own entry, or the twin it renames. */
+  entry?: CacheEntry;
+  /** The twin entry that a renamed input takes over, so its source is re-keyed. */
+  rekeyed?: CacheEntry;
+}
+
+/** Relate one input to the cache: its own entry, a renamed twin (same hash and extension), or nothing. */
+export function classifyInput(
+  name: string,
+  sha: string,
+  bySource: Map<string, CacheEntry>,
+  bySha: Map<string, CacheEntry>,
+): InputMatch {
+  const own = bySource.get(name);
+  if (own) {
+    return { state: own.sha256 === sha ? 'cached' : 'stale', entry: own };
+  }
+  const twin = bySha.get(sha);
+  if (twin && path.extname(twin.source).toLowerCase() === path.extname(name).toLowerCase()) {
+    return { state: 'renamed', entry: twin, rekeyed: twin };
+  }
+  return { state: 'new' };
+}
+
+function buildFileCard(
+  paths: ProjectPaths,
+  name: string,
+  outputs: Outputs,
+  size: number,
+  match: InputMatch,
+): FileCard {
+  return {
+    name,
+    format: path.extname(name).toLowerCase(),
+    size,
+    state: match.state,
+    processedAt: match.entry?.processedAt,
+    provider: match.entry?.provider,
+    model: match.entry?.model,
+    hasCache: fs.existsSync(outputs.cache),
+    hasPreprocessed: fs.existsSync(outputs.preprocessed),
+    hasImages: fs.existsSync(outputs.images),
+    history: listHistory(paths.cache, name),
+  };
+}
+
+function findOrphans(entries: CacheEntry[], names: string[], rekeyed: Set<string>): OrphanCard[] {
+  const present = new Set(names);
+  return (
+    entries
+      // A result that a renamed file will take over on the next run is not abandoned.
+      .filter((entry) => !present.has(entry.source) && !rekeyed.has(entry.source))
+      .map((entry) => ({ name: entry.source, processedAt: entry.processedAt }))
+  );
+}
+
 export class FileIndex {
   private readonly hashes = new Map<string, { size: number; mtimeMs: number; sha: string }>();
 
@@ -142,13 +212,7 @@ export class FileIndex {
   /** The input files with their cache state, plus cache entries whose source is gone. */
   async scan(): Promise<{ files: FileCard[]; orphans: OrphanCard[] }> {
     const { inputs, cache } = this.paths;
-    const names = fs.existsSync(inputs)
-      ? fs
-          .readdirSync(inputs, { withFileTypes: true })
-          .filter((item) => item.isFile() && isSupported(item.name))
-          .map((item) => item.name)
-          .sort((a, b) => a.localeCompare(b))
-      : [];
+    const names = listInputNames(inputs);
 
     const entries = readCacheEntries(cache);
     const bySource = new Map(entries.map((entry) => [entry.source, entry]));
@@ -160,39 +224,14 @@ export class FileIndex {
       const outputs = outputsOf(this.paths, name);
       const size = fs.statSync(outputs.original).size;
       const sha = await this.sha256(outputs.original);
-      const own = bySource.get(name);
-      const twin = own ? undefined : bySha.get(sha);
-      let state: CacheState = 'new';
-      if (own) {
-        state = own.sha256 === sha ? 'cached' : 'stale';
-      } else if (twin && path.extname(twin.source).toLowerCase() === path.extname(name).toLowerCase()) {
-        state = 'renamed';
+      const match = classifyInput(name, sha, bySource, bySha);
+      if (match.rekeyed) {
+        rekeyed.add(match.rekeyed.source);
       }
-      const entry = own ?? (state === 'renamed' ? twin : undefined);
-      if (state === 'renamed' && twin) {
-        rekeyed.add(twin.source);
-      }
-      files.push({
-        name,
-        format: path.extname(name).toLowerCase(),
-        size,
-        state,
-        processedAt: entry?.processedAt,
-        provider: entry?.provider,
-        model: entry?.model,
-        hasCache: fs.existsSync(outputs.cache),
-        hasPreprocessed: fs.existsSync(outputs.preprocessed),
-        hasImages: fs.existsSync(outputs.images),
-        history: listHistory(cache, name),
-      });
+      files.push(buildFileCard(this.paths, name, outputs, size, match));
     }
 
-    const present = new Set(names);
-    const orphans = entries
-      // A result that a renamed file will take over on the next run is not abandoned.
-      .filter((entry) => !present.has(entry.source) && !rekeyed.has(entry.source))
-      .map((entry) => ({ name: entry.source, processedAt: entry.processedAt }));
-    return { files, orphans };
+    return { files, orphans: findOrphans(entries, names, rekeyed) };
   }
 
   /** Move a cache entry to `.history` (never deletes it). Returns the archive path. */
