@@ -17,18 +17,19 @@ This repository contains a small stack of MCP (Model Context Protocol) services 
 
 	The authentication JSON file is sensitive. Keep it outside version control and mount it
 	through the `crawler` service as `auth_actions.json`.
-2. Describe your projects in `projects.json` (see `projects.example.json`), then generate
-	the mounts and start the stack:
+2. Describe your projects in `~/.spec2test/projects.json` (see `projects.example.json`;
+	the VS Code extension creates it for you), then start the stack:
 	```bash
-	cp projects.example.json projects.json   # first time only
-	$EDITOR projects.json
-	python scripts/sync_projects.py
+	mkdir -p ~/.spec2test && cp projects.example.json ~/.spec2test/projects.json   # first time only
 	docker compose up -d --build
 	```
 
-	`projects.json` is yours and stays out of version control. Each project gets its own
-	inputs folder plus its own cache and preprocessed folders, all mounted into
-	`input-processor` under `/projects/<name>/…`.
+	`~/.spec2test` (override with `SPEC2TEST_HOME`) is the only folder mounted into
+	`input-processor`, as `/projects`. Adding a project never needs a restart. Each project
+	has a work area `~/.spec2test/<name>/{inputs,preprocessed,cache}` that the container
+	uses; the VS Code extension copies an input there only while it is processed and keeps
+	the results next to your files, in `<inputs>/.spec2test/cache`. The work area can be
+	deleted at any time.
 3. Optional GPU support:
 	```bash
 	docker compose -f docker-compose.yaml -f docker-compose.gpu.yaml up -d --build
@@ -57,6 +58,19 @@ with the example project name: change it to the project you are working on, or a
 server entry per project. Call the `current_project` tool to check that a session
 resolved to the project you meant.
 
+## VS Code extension
+
+`vscode-extension/` is a sidebar for the input-processor: it creates projects, copies
+dropped files into them, processes them with live progress, lets you pick the models and
+API keys, opens the original / pre-processed / cached file from one card, and starts and
+stops the Docker container for you. See [`vscode-extension/README.md`](vscode-extension/README.md).
+
+**Install:** download `spec2test-<version>.vsix` from the
+[Releases page](https://github.com/lksnext-ai-lab/spec2test/releases) and run
+`code --install-extension spec2test-<version>.vsix`. The extension then pulls the matching
+Docker images itself. Contributors can still build the images locally with
+`vscode-extension/scripts/verify-image.sh`.
+
 ## Development
 
 - Input processing: see `input-processor/README.md`
@@ -75,7 +89,7 @@ network when used outside a local development environment.
 ```
 input-processor/       # File analysis for MP4, PDF, Markdown, and text inputs
 web-crawler/           # Site crawler that extracts links, UI elements, and content
-scripts/               # sync_projects.py: projects.json -> Compose override
+vscode-extension/      # VS Code sidebar to manage projects, files and processing
 projects.example.json  # Starting point for your own projects.json (gitignored)
 docker-compose.yaml    # Core services
 docker-compose.gpu.yaml # GPU override

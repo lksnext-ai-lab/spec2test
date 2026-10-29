@@ -10,6 +10,7 @@ from langchain_core.messages import HumanMessage
 
 from analysis.video.base import VideoAnalysisError, VideoAnalyzer
 from analysis.video.frames import extract_frames, sample_evenly
+from progress import reporter
 from settings import VideoSettings
 from utils.text import to_text
 
@@ -31,6 +32,7 @@ class FrameSamplingAnalyzer(VideoAnalyzer):
         self._settings = settings
 
     def analyze(self, video_path: Path) -> str:
+        reporter().stage("Extracting video frames")
         _log.info("Extracting frames from %s...", video_path.name)
         frames = extract_frames(video_path, interval_seconds=self._settings.frame_interval_seconds)
         if not frames:
@@ -44,6 +46,7 @@ class FrameSamplingAnalyzer(VideoAnalyzer):
             _log.warning(
                 "Too many frames (%s). Sampling down to %s.", len(frames), len(sampled)
             )
+        reporter().stage(f"Analysing {len(sampled)} frames with the model")
         _log.info("Sending %s frames to the model.", len(sampled))
 
         return to_text(self._llm.invoke([HumanMessage(content=self._build_content(sampled))]).content)

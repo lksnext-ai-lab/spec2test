@@ -73,12 +73,16 @@ class CacheReconciler:
     def index(self) -> CacheIndex:
         return CacheIndex.build(self._entries.values())
 
-    def plan(self, source: SourceFile) -> Reconciliation:
-        """Decide what should happen to ``source`` without touching anything."""
+    def plan(self, source: SourceFile, force: bool = False) -> Reconciliation:
+        """Decide what should happen to ``source`` without touching anything.
+
+        ``force`` treats an up-to-date cache entry as stale, so it is archived
+        and the file processed again.
+        """
         current = self._entries.get(source.name)
 
         if current is not None:
-            if current.sha256 == source.sha256:
+            if current.sha256 == source.sha256 and not force:
                 return Reconciliation(
                     CacheStatus.CACHED, entry=current, content=self.repository.read(current)
                 )
@@ -102,9 +106,10 @@ class CacheReconciler:
         produce: Callable[[], str],
         provider: str,
         model: str,
+        force: bool = False,
     ) -> Reconciliation:
         """Carry out :meth:`plan`, calling ``produce`` only when needed."""
-        decision = self.plan(source)
+        decision = self.plan(source, force=force)
 
         if decision.status is CacheStatus.CACHED:
             _log.info("Cache hit for %s", source.name)

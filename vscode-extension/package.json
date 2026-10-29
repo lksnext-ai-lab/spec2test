@@ -1,0 +1,211 @@
+{
+  "name": "spec2test",
+  "displayName": "Spec2Test",
+  "description": "Manage Spec2Test projects, drop in specs and recordings, process them with the input-processor and review the results without leaving VS Code.",
+  "version": "0.1.0",
+  "publisher": "lksnext-ai-lab",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lksnext-ai-lab/spec2test.git",
+    "directory": "vscode-extension"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Testing",
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "workspaceContains:**/*.feature"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "spec2test",
+          "title": "Spec2Test",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "spec2test": [
+        {
+          "id": "spec2test.dropZone",
+          "name": "Drop files",
+          "type": "tree",
+          "initialSize": 1
+        },
+        {
+          "id": "spec2test.main",
+          "name": "Spec2Test",
+          "type": "webview",
+          "initialSize": 9
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "spec2test.focus",
+        "title": "Spec2Test: Open sidebar"
+      },
+      {
+        "command": "spec2test.startService",
+        "title": "Spec2Test: Start the input-processor"
+      },
+      {
+        "command": "spec2test.stopService",
+        "title": "Spec2Test: Stop the input-processor"
+      },
+      {
+        "command": "spec2test.showLogs",
+        "title": "Spec2Test: Show input-processor logs"
+      },
+      {
+        "command": "spec2test.installAgents",
+        "title": "Spec2Test: Add the Gherkin-Generator to this project"
+      },
+      {
+        "command": "spec2test.addFiles",
+        "title": "Spec2Test: Add files to the project…"
+      },
+      {
+        "command": "spec2test.openWalkthrough",
+        "title": "Spec2Test: Getting started"
+      },
+      {
+        "command": "spec2test.changeDataFolder",
+        "title": "Spec2Test: Change the data folder…"
+      },
+      {
+        "command": "spec2test.checkForUpdates",
+        "title": "Spec2Test: Check for updates"
+      },
+      {
+        "command": "spec2test.revealInput",
+        "title": "Spec2Test: Show input in the sidebar"
+      }
+    ],
+    "configuration": {
+      "title": "Spec2Test",
+      "properties": {
+        "spec2test.port": {
+          "type": "number",
+          "default": 8003,
+          "description": "Host port of the input-processor container (it listens on 8000 inside)."
+        },
+        "spec2test.autoStartService": {
+          "type": "boolean",
+          "default": false,
+          "description": "Start the input-processor container automatically when the sidebar opens."
+        },
+        "spec2test.image.inputProcessor": {
+          "type": "string",
+          "default": "",
+          "description": "Docker image for the input-processor. Leave empty to use the image published for this version of the extension; set it to a local tag (for example spec2test-input-processor:dev) when developing."
+        },
+        "spec2test.image.webCrawler": {
+          "type": "string",
+          "default": "",
+          "description": "Docker image for the web crawler. Leave empty to use the image published for this version of the extension."
+        },
+        "spec2test.webCrawler.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Also run the web-crawler container, which the Gherkin-Generator agent uses to explore the application."
+        },
+        "spec2test.webCrawler.port": {
+          "type": "number",
+          "default": 8000,
+          "description": "Host port of the web-crawler container."
+        },
+        "spec2test.gpu": {
+          "type": "boolean",
+          "default": false,
+          "description": "Give the input-processor container access to NVIDIA GPUs (docker run --gpus all)."
+        },
+        "spec2test.dataFolder": {
+          "type": "string",
+          "default": "",
+          "description": "Folder where Spec2Test keeps projects.json and the work area of every project (the folder the container mounts). Leave empty for ~/.spec2test. Use 'Spec2Test: Change the data folder…' to move your projects along with it."
+        },
+        "spec2test.checkForUpdates": {
+          "type": "boolean",
+          "default": true,
+          "description": "Once a day, look for a newer Spec2Test release on GitHub and offer to install it."
+        }
+      }
+    },
+    "walkthroughs": [
+      {
+        "id": "spec2test.gettingStarted",
+        "title": "Get started with Spec2Test",
+        "description": "From an empty machine to your first processed spec.",
+        "steps": [
+          {
+            "id": "docker",
+            "title": "Install and start Docker",
+            "description": "Spec2Test runs in Docker containers that the extension pulls and starts for you. The sidebar footer tells you what is missing and offers the next step.\n[Open Spec2Test](command:spec2test.focus)",
+            "media": {
+              "markdown": "media/walkthrough/docker.md"
+            }
+          },
+          {
+            "id": "keys",
+            "title": "Add an API key",
+            "description": "Open the Environment section and paste the key of the LLM provider you want to use. Keys are kept in your OS keychain and handed to the container when it starts.",
+            "media": {
+              "markdown": "media/walkthrough/keys.md"
+            }
+          },
+          {
+            "id": "project",
+            "title": "Create a project",
+            "description": "A project is a folder of inputs plus its own cache and pre-processed outputs.",
+            "media": {
+              "markdown": "media/walkthrough/project.md"
+            }
+          },
+          {
+            "id": "process",
+            "title": "Drop files and process them",
+            "description": "Drop .mp4, .pdf, .md or .txt files into the drop zone, then press Process. Progress is live on every file card.",
+            "media": {
+              "markdown": "media/walkthrough/process.md"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "lint": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p webview-ui/tsconfig.json",
+    "test": "vitest run",
+    "package": "npm run build && vsce package --no-dependencies",
+    "vscode:prepublish": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "fflate": "^0.8.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@types/vscode": "^1.90.0",
+    "@vitest/coverage-v8": "^5.0.5",
+    "@vscode/vsce": "^3.0.0",
+    "esbuild": "^0.28.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.5.0",
+    "vitest": "^5.0.5"
+  }
+}

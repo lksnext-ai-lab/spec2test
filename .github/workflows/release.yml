@@ -1,0 +1,128 @@
+name: Release
+
+# Every merge to main publishes both Docker images and the VS Code extension
+# under one version (<major.minor of the extension>.<run number>). The extension
+# runs ghcr.io/lksnext-ai-lab/spec2test-<service>:<its own version>, so the image
+# tags and the .vsix version must stay identical.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build everything but push no images and create no release
+        type: boolean
+        default: true
+
+# One release at a time; a newer merge waits instead of cancelling a publish.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/lksnext-ai-lab/spec2test
+  # Pushes always publish; manual runs publish only when dry_run is false.
+  PUBLISH: ${{ github.event_name == 'push' || inputs.dry_run == false }}
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          base=$(node -p "require('./vscode-extension/package.json').version.split('.').slice(0, 2).join('.')")
+          echo "version=${base}.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+  images:
+    needs: version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        service: [input-processor, web-crawler]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: env.PUBLISH == 'true'
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.service }}
+          platforms: linux/amd64,linux/arm64
+          push: ${{ env.PUBLISH == 'true' }}
+          tags: |
+            ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:${{ needs.version.outputs.version }}
+            ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ needs.version.outputs.version }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  extension:
+    needs: version
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vscode-extension
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: vscode-extension/package-lock.json
+      # Only in this checkout: the bump is never committed back, so the workflow
+      # cannot retrigger itself.
+      - run: npm version "${{ needs.version.outputs.version }}" --no-git-tag-version
+      - run: npm ci
+      - run: npx vsce package --no-dependencies
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: vscode-extension/spec2test-${{ needs.version.outputs.version }}.vsix
+          if-no-files-found: error
+
+  release:
+    needs: [version, images, extension]
+    if: github.event_name == 'push' || inputs.dry_run == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: vsix
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          cat > notes.md <<NOTES
+          Install: download \`spec2test-${VERSION}.vsix\` and run \`code --install-extension spec2test-${VERSION}.vsix\`.
+          The extension pulls the matching images itself.
+
+          Images (linux/amd64, linux/arm64):
+          - \`${IMAGE_PREFIX}-input-processor:${VERSION}\`
+          - \`${IMAGE_PREFIX}-web-crawler:${VERSION}\`
+
+          Commit: ${GITHUB_SHA}
+          NOTES
+          gh release create "v${VERSION}" "spec2test-${VERSION}.vsix" \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "v${VERSION}" --notes-file notes.md

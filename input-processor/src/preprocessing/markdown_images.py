@@ -11,6 +11,7 @@ from analysis.image_describer import ImageDescriber
 from cache.preprocessed import PreprocessedStore
 from cache.reconcile import CacheStatus
 from cache.source import SourceFile
+from progress import reporter
 from utils.media import guess_media_type
 
 _log = logging.getLogger(__name__)
@@ -47,7 +48,16 @@ class MarkdownImageEnricher:
 
     def _build(self, source: SourceFile) -> str:
         markdown = source.path.read_text(encoding="utf-8", errors="replace")
-        return IMAGE_RE.sub(lambda match: self._describe_match(source.path, match), markdown)
+        total = len(IMAGE_RE.findall(markdown))
+        seen = 0
+
+        def describe(match: re.Match[str]) -> str:
+            nonlocal seen
+            seen += 1
+            reporter().step(seen, total, f"Describing image {seen}/{total}")
+            return self._describe_match(source.path, match)
+
+        return IMAGE_RE.sub(describe, markdown)
 
     def _describe_match(self, markdown_path: Path, match: re.Match[str]) -> str:
         target = match.group("target")
