@@ -3,7 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { FileIndex, copyIntoInputs, isSupported, listHistory, outputsOf, parseFrontMatter } from '../src/core/fileindex';
+import { FileIndex, classifyInput, copyIntoInputs, listInputNames, isSupported, listHistory, outputsOf, parseFrontMatter } from '../src/core/fileindex';
 
 let root: string;
 let paths: { inputs: string; cache: string; preprocessed: string };
@@ -86,6 +86,35 @@ describe('scan', () => {
     fs.rmSync(paths.inputs, { recursive: true });
     fs.rmSync(paths.cache, { recursive: true });
     expect(await new FileIndex(paths).scan()).toEqual({ files: [], orphans: [] });
+  });
+});
+
+describe('classifyInput and listInputNames', () => {
+  const entry = (source: string, sha256: string) => ({ source, sha256 });
+  const index = (entries: ReturnType<typeof entry>[]) => ({
+    bySource: new Map(entries.map((item) => [item.source, item])),
+    bySha: new Map(entries.map((item) => [item.sha256, item])),
+  });
+
+  it('classifies an input against its own entry, a renamed twin or nothing', () => {
+    const { bySource, bySha } = index([entry('a.md', 'h1'), entry('old.pdf', 'h2')]);
+    expect(classifyInput('a.md', 'h1', bySource, bySha)).toMatchObject({ state: 'cached' });
+    expect(classifyInput('a.md', 'changed', bySource, bySha)).toMatchObject({ state: 'stale' });
+    const renamed = classifyInput('new.PDF', 'h2', bySource, bySha);
+    expect(renamed.state).toBe('renamed');
+    expect(renamed.rekeyed?.source).toBe('old.pdf');
+    expect(classifyInput('x.md', 'h2', bySource, bySha).state).toBe('new');
+    expect(classifyInput('x.md', 'zzz', bySource, bySha)).toEqual({ state: 'new' });
+  });
+
+  it('lists only supported files, sorted, and copes with a missing folder', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 's2t-list-'));
+    for (const name of ['b.pdf', 'a.md', 'c.docx']) {
+      fs.writeFileSync(path.join(dir, name), 'x');
+    }
+    fs.mkdirSync(path.join(dir, 'folder.pdf'));
+    expect(listInputNames(dir)).toEqual(['a.md', 'b.pdf']);
+    expect(listInputNames(path.join(dir, 'missing'))).toEqual([]);
   });
 });
 
