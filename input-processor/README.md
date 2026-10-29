@@ -26,21 +26,16 @@ extracting the information a Gherkin generator needs.
    cp projects.example.json projects.json
    ```
 
-   Each entry names a project and the folder holding its inputs. Relative paths are
-   resolved against the folder holding `projects.json`; `inputs` defaults to
-   `<name>/inputs`, and `preprocessed`/`cache` to `.spec2test-data/<name>/…`.
+   Put it at `~/.spec2test/projects.json`. The container sees that folder as `/projects`,
+   and each project as `/projects/<name>/{inputs,preprocessed,cache}`. Adding a project is
+   an edit of the file plus creating its `inputs` folder (the VS Code extension does both
+   and copies files in only while they are processed).
 
-2. Generate the Compose override that mounts every project into `input-processor`,
-   then start the stack:
+2. Start the stack; no per-project mounts are needed:
 
    ```bash
-   python scripts/sync_projects.py
    docker compose up -d --build input-processor
    ```
-
-   `sync_projects.py` also creates the output folders and refuses to run when an inputs
-   folder is missing, so a typo in `projects.json` fails on the host instead of inside
-   the container.
 
 3. Point an MCP client at `http://localhost:8003/mcp` and send the project header:
 
@@ -88,7 +83,7 @@ two projects can use different models from the same container.
 - `vision` is the model that describes images (PDF renderings, Markdown images). Leave
   it unset to reuse `llm`, or set it to a project whose provider cannot see images to
   disable image enrichment for that project.
-- Names must match `[a-z0-9][a-z0-9._-]*`. The container and `sync_projects.py` share
+- Names must match `[a-z0-9][a-z0-9._-]*`. The container and the extension share
   that rule, and a duplicate name is refused.
 
 ### Choosing a provider and model
@@ -131,7 +126,7 @@ Tuning (all optional, defaults in brackets):
 
 | Variable                                      | Purpose                                          |
 | --------------------------------------------- | ------------------------------------------------ |
-| `INPUT_PROCESSOR_PROJECTS_CONFIG`             | Path to `projects.json` in the container `[/config/projects.json]` |
+| `INPUT_PROCESSOR_PROJECTS_CONFIG`             | Path to `projects.json` in the container `[/config/projects.json]`; Compose sets `/projects/projects.json` |
 | `INPUT_PROCESSOR_PROJECTS_ROOT`               | Folder holding the mounted projects `[/projects]` |
 | `INPUT_PROCESSOR_LOG_LEVEL`                   | `DEBUG`, `INFO`, … `[INFO]`                      |
 | `INPUT_PROCESSOR_VIDEO_SEGMENT_SECONDS`       | Target segment length `[60]`                     |
@@ -302,7 +297,7 @@ Inside Compose it listens on `8000` (the image sets `HOST=0.0.0.0`); `8003` is t
 - **Per-file isolation**: a file that fails is reported with `status: "error"` and an
   explanation; the rest of the run continues.
 - **Missing project folder**: a project whose `inputs` folder was never mounted fails
-  with a message naming `scripts/sync_projects.py`.
+  with a message pointing at `projects.json`.
 - **Unknown or missing header**: the tool returns an error listing the configured
   projects instead of guessing.
 - **PDF encryption**: decryption is attempted before falling back to a clear error.

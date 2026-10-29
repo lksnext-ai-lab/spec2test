@@ -7,10 +7,13 @@ import { DockerService } from './docker';
 import { judgeProbe } from './core/health';
 import { EnvStore } from './envstore';
 import { FileIndex, copyIntoInputs, isSupported, outputsOf, ownedFiles } from './core/fileindex';
-import { JobQueue } from './core/jobqueue';
+import { JobQueue, type RunHooks } from './core/jobqueue';
+import { migrateLegacy } from './core/migrate';
 import {
   ProjectError,
   addProject,
+  dataRoot,
+  workAreaOf,
   readConfig,
   removeProject,
   resolveFeatures,
@@ -24,6 +27,7 @@ import {
 import { readProviders } from './core/providers';
 import { HF_TOKEN, TUNING } from './core/tuning';
 import { McpService } from './mcp';
+import { hashFile, refreshWork, runStaged, type Layout } from './core/staging';
 import { Traceability } from './traceability';
 import { findRepo } from './repo';
 import type { AppState, DockerState, FileOpenKind, ProjectFolder, ProjectView, ToHost } from './shared/messages';
@@ -67,7 +71,7 @@ export class Controller implements vscode.Disposable {
     this.env = new EnvStore(context.secrets, () => this.repo);
     this.mcp = new McpService(() => this.port, (line) => this.activity.appendLine(line));
     this.queue = new JobQueue(
-      (file, force, hooks) => this.mcp.processFile(this.jobProject ?? '', file, force, hooks),
+      (file, force, hooks) => this.runJob(file, force, hooks),
       (jobs) => {
         this.jobs = jobs;
         this.post();
@@ -90,7 +94,7 @@ export class Controller implements vscode.Disposable {
   }
 
   private get configFile(): string | undefined {
-    return this.repo ? path.join(this.repo, 'projects.json') : undefined;
+    return this.repo ? path.join(dataRoot(), 'projects.json') : undefined;
   }
 
   private readConfig(): ProjectsConfig {
@@ -109,6 +113,52 @@ export class Controller implements vscode.Disposable {
     const file = this.configFile;
     const entry = this.readConfig().projects.find((project) => project.name === name);
     return entry && file ? resolvePaths(entry, path.dirname(file)) : undefined;
+  }
+
+  /** The user's folders and the container's work area for one project. */
+  private layoutOf(name: string): Layout | undefined {
+    const file = this.configFile;
+    const entry = this.readConfig().projects.find((project) => project.name === name);
+    if (!entry || !file) {
+      return undefined;
+    }
+    const paths = resolvePaths(entry, path.dirname(file));
+    return { inputs: paths.inputs, cache: paths.cache, work: workAreaOf(path.dirname(file), name) };
+  }
+
+  private runJob(file: string, force: boolean, hooks: RunHooks): Promise<{ status: string; error?: string }> {
+    const project = this.jobProject ?? '';
+    const layout = this.layoutOf(project);
+    const process = () => this.mcp.processFile(project, file, force, hooks);
+    if (!layout) {
+      return process();
+    }
+    return runStaged({
+      layout,
+      name: file,
+      force,
+      signal: hooks.signal,
+      sha256: () => this.index?.sha256(path.join(layout.inputs, file)) ?? hashFile(path.join(layout.inputs, file)),
+      process,
+      report: hooks.onStage,
+    });
+  }
+
+  /** Keep every project's work cache in step with its cache folder (agents read it through the container). */
+  private refreshWorkAreas(): void {
+    if (this.queue.busy) {
+      return;
+    }
+    for (const entry of this.readConfig().projects) {
+      const layout = this.layoutOf(entry.name);
+      try {
+        if (layout) {
+          refreshWork(layout);
+        }
+      } catch (error) {
+        this.activity.appendLine(`Could not update the work area of '${entry.name}': ${(error as Error).message}`);
+      }
+    }
   }
 
   get selectedName(): string | undefined {
@@ -154,6 +204,11 @@ export class Controller implements vscode.Disposable {
 
   private async afterRepoChange(): Promise<void> {
     if (this.repo) {
+      try {
+        migrateLegacy(this.repo, dataRoot()).forEach((note) => this.activity.appendLine(note));
+      } catch (error) {
+        this.activity.appendLine(`Could not import the old projects.json: ${(error as Error).message}`);
+      }
       this.env.ensureFile();
       this.providers = readProviders(this.repo);
       await this.env.syncKeys(this.keyNames());
@@ -191,6 +246,7 @@ export class Controller implements vscode.Disposable {
   }
 
   async rescan(): Promise<void> {
+    this.refreshWorkAreas();
     try {
       const scan = (await this.index?.scan()) ?? { files: [], orphans: [] };
       this.files = scan.files;
@@ -384,7 +440,7 @@ export class Controller implements vscode.Disposable {
     const folder = picked[0].fsPath;
     if (!findRepo(folder, [])) {
       void vscode.window.showErrorMessage(
-        'That folder does not look like the spec2test repository (docker-compose.yaml, scripts/sync_projects.py and input-processor/ are expected).',
+        'That folder does not look like the spec2test repository (docker-compose.yaml and input-processor/ are expected).',
       );
       return;
     }
@@ -430,7 +486,6 @@ export class Controller implements vscode.Disposable {
     writeConfig(file, addProject(config, { name, inputs }));
     await this.context.workspaceState.update(SELECTED_KEY, name);
     this.watchProject();
-    await this.syncAndRestart(`Creating project '${name}'…`);
     await this.rescan();
   }
 
@@ -559,6 +614,10 @@ export class Controller implements vscode.Disposable {
       await this.changeFeaturesFolder(name);
       return;
     }
+    if (which === 'preprocessed') {
+      void vscode.window.showInformationMessage('Pre-processed files live in the Spec2Test work area and cannot be moved.');
+      return;
+    }
     const { paths } = this.projectPaths(name);
     const label = FOLDER_LABEL[which];
     const picked = await this.pickFolder(`${label} folder for '${name}'. Files already in the old folder are not moved.`, paths[which]);
@@ -569,7 +628,6 @@ export class Controller implements vscode.Disposable {
     const file = this.requireConfigFile();
     writeConfig(file, updateProject(readConfig(file), name, { [which]: picked }));
     this.watchProject();
-    await this.syncAndRestart(`Changing the ${label.toLowerCase()} folder…`);
     await this.rescan();
   }
 
@@ -605,46 +663,7 @@ export class Controller implements vscode.Disposable {
     const config = removeProject(readConfig(file), name);
     writeConfig(file, config);
     this.watchProject();
-    if (config.projects.length > 0) {
-      await this.syncAndRestart(`Removing project '${name}'…`);
-    }
     await this.rescan();
-  }
-
-  /** Regenerate docker-compose.override.yaml, then recreate the container if it is running. */
-  private async syncAndRestart(label: string): Promise<void> {
-    await this.withBusy(label, async () => {
-      await this.runSync();
-      const running = (await this.dockerService.probe()).state;
-      if (running === 'running' || running === 'starting') {
-        const result = await this.dockerService.up({ recreate: true });
-        if (result.code !== 0) {
-          throw new Error(`Docker could not restart the service:\n${tail(result.stderr)}`);
-        }
-        await this.dockerService.waitUntilReachable();
-        await this.context.globalState.update(PENDING_KEY, false);
-      }
-    });
-  }
-
-  private runSync(): Promise<void> {
-    const repo = this.repo;
-    if (!repo) {
-      return Promise.reject(new Error('Choose the spec2test repository folder first.'));
-    }
-    if (this.readConfig().projects.length === 0) {
-      return Promise.resolve();
-    }
-    const python = vscode.workspace.getConfiguration('spec2test').get<string>('pythonPath', 'python3');
-    return new Promise((resolve, reject) => {
-      execFile(python, [path.join('scripts', 'sync_projects.py'), '--quiet'], { cwd: repo }, (error, _stdout, stderr) => {
-        if (error) {
-          reject(new Error(`scripts/sync_projects.py failed:\n${tail(stderr || error.message)}`));
-        } else {
-          resolve();
-        }
-      });
-    });
   }
 
   private async useInCopilot(name: string): Promise<void> {
@@ -706,7 +725,8 @@ export class Controller implements vscode.Disposable {
     }
     await this.withBusy(options.build ? 'Building and starting…' : 'Starting the input-processor…', async () => {
       this.env.ensureFile();
-      await this.runSync();
+      // Docker would create a missing bind-mount source as root.
+      fs.mkdirSync(dataRoot(), { recursive: true });
       if (options.build) {
         this.logs.show(true);
       }

@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-const MARKERS = ['docker-compose.yaml', path.join('scripts', 'sync_projects.py'), 'input-processor'];
+const MARKERS = ['docker-compose.yaml', 'input-processor'];
 
 export function isRepo(dir: string): boolean {
   return MARKERS.every((marker) => fs.existsSync(path.join(dir, marker)));

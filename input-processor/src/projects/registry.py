@@ -1,8 +1,8 @@
 """Project lookup, re-read from disk on every request.
 
-``projects.json`` is mounted read-only into the container, so reading it per
-request means a edit plus ``sync_projects.py`` takes effect without rebuilding
-the image.
+``projects.json`` sits in the mounted projects folder, so reading it per
+request means an edit takes effect without rebuilding the image or
+restarting the container.
 """
 
 from __future__ import annotations
@@ -85,8 +85,8 @@ class ProjectRegistry:
         if not self.config_path.is_file():
             raise ProjectConfigError(
                 f"Project configuration not found at {self.config_path}. "
-                "Run 'python scripts/sync_projects.py' on the host and then "
-                "'docker compose up -d'."
+                "Create a project from the Spec2Test extension, or write "
+                "~/.spec2test/projects.json (see projects.example.json)."
             )
 
         try:

@@ -88,7 +88,6 @@ export function MainView({ state, openSettings }: { state: AppState; openSetting
                   { label: project.features ? 'Open features folder' : 'Set features folder…', icon: 'folder', onSelect: () => folder('features', 'open') },
                   { label: 'Change inputs folder…', icon: 'settings', separatorBefore: true, disabled: Boolean(docker.busy), onSelect: () => folder('inputs', 'change') },
                   { label: 'Change cache folder…', icon: 'settings', disabled: Boolean(docker.busy), onSelect: () => folder('cache', 'change') },
-                  { label: 'Change pre-processed folder…', icon: 'settings', disabled: Boolean(docker.busy), onSelect: () => folder('preprocessed', 'change') },
                   ...(project.features ? [{ label: 'Change features folder…', icon: 'settings' as const, onSelect: () => folder('features', 'change') }] : []),
                   { label: 'Use this project for agents', icon: 'external', separatorBefore: true, onSelect: () => send({ type: 'useInCopilot', name: project.name }) },
                   { label: 'Remove project', icon: 'trash', danger: true, separatorBefore: true, onSelect: () => send({ type: 'removeProject', name: project.name }) },

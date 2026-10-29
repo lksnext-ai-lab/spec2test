@@ -152,7 +152,7 @@ def test_an_unmounted_project_explains_how_to_fix_it(tmp_path: Path) -> None:
 
     message = str(error.value)
     assert str(project.inputs) in message
-    assert "scripts/sync_projects.py" in message
+    assert "projects.json" in message
 
 
 # --- configuration file ------------------------------------------------------
@@ -190,7 +190,7 @@ def test_a_missing_configuration_file_is_reported(tmp_path: Path) -> None:
         registry.load()
 
     assert "not found" in str(error.value)
-    assert "docker compose up -d" in str(error.value)
+    assert "projects.json" in str(error.value)
 
 
 def test_an_invalid_configuration_file_is_reported(tmp_path: Path) -> None:
@@ -265,7 +265,7 @@ def test_get_without_a_name_reports_a_broken_configuration(tmp_path: Path) -> No
 def test_get_checks_that_the_project_is_mounted(tmp_path: Path) -> None:
     registry = registry_for(tmp_path, {"projects": [{"name": "alpha"}]})
 
-    with pytest.raises(ProjectConfigError, match="sync_projects.py"):
+    with pytest.raises(ProjectConfigError, match="projects.json"):
         registry.get("alpha")
 
     mounted(tmp_path, "alpha")

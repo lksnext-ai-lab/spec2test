@@ -17,8 +17,8 @@ CACHE_DIRNAME = "cache"
 SEGMENTS_DIRNAME = "_segments"
 
 _HELP = (
-    "Run 'python scripts/sync_projects.py' on the host and then "
-    "'docker compose up -d' so the project folders are mounted."
+    "Create the project from the Spec2Test extension, or add it to "
+    "~/.spec2test/projects.json, so its folders exist under the /projects mount."
 )
 
 

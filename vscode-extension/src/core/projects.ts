@@ -5,13 +5,22 @@ import type { LlmSettings } from '../shared/types';
 
 export type { LlmSettings };
 
-/** Same rule as input-processor/src/projects/model.py and scripts/sync_projects.py. */
+/** Same rule as input-processor/src/projects/model.py. */
 export const NAME_RE = /^[a-z0-9][a-z0-9._-]*$/;
+
+/** Folder inside a project's inputs folder that holds its results (`<inputs>/.spec2test/cache`). */
+export const PROJECT_DATA_DIRNAME = '.spec2test';
+
+/** The one folder the container mounts: projects.json plus a work area per project. */
+export function dataRoot(): string {
+  return path.resolve(process.env.SPEC2TEST_HOME?.trim() || path.join(os.homedir(), '.spec2test'));
+}
 
 export interface ProjectEntry {
   name: string;
+  /** Host folder with the files to process. Left untouched; files are staged in the work area. */
   inputs?: string;
-  preprocessed?: string;
+  /** Host folder for the processed results. Defaults to `<inputs>/.spec2test/cache`. */
   cache?: string;
   /** Host-only: where the .feature files are. Never mounted into Docker. */
   features?: string;
@@ -30,31 +39,54 @@ export interface ProjectPaths {
   cache: string;
 }
 
+/** Where the container sees a project: `<root>/<name>/{inputs,preprocessed,cache}`. Disposable. */
+export interface WorkArea {
+  root: string;
+  inputs: string;
+  preprocessed: string;
+  cache: string;
+}
+
 export class ProjectError extends Error {}
 
 export function validateName(name: string): string | undefined {
+  if (name === 'projects.json') {
+    return 'That name is reserved for the configuration file.';
+  }
   if (!NAME_RE.test(name)) {
     return 'Use lowercase letters, digits, dots, dashes or underscores, starting with a letter or digit.';
   }
   return undefined;
 }
 
-/** Host-side folders of a project: mirrors scripts/sync_projects.py `_project`. */
-export function resolvePaths(entry: ProjectEntry, configDir: string): ProjectPaths {
-  const fallback = path.join(configDir, '.spec2test-data', entry.name);
+export function workAreaOf(root: string, name: string): WorkArea {
+  const base = path.join(root, name);
   return {
-    inputs: resolve(entry.inputs, path.join(configDir, entry.name, 'inputs'), configDir),
-    preprocessed: resolve(entry.preprocessed, path.join(fallback, 'preprocessed'), configDir),
-    cache: resolve(entry.cache, path.join(fallback, 'cache'), configDir),
+    root: base,
+    inputs: path.join(base, 'inputs'),
+    preprocessed: path.join(base, 'preprocessed'),
+    cache: path.join(base, 'cache'),
   };
+}
+
+/**
+ * Host-side folders of a project, as the user sees them: `inputs` and `cache` are the user's
+ * folders, `preprocessed` always lives in the work area. Without an inputs folder the project is
+ * "managed": it lives entirely in the work area and nothing is staged or copied back.
+ */
+export function resolvePaths(entry: ProjectEntry, root: string): ProjectPaths {
+  const work = workAreaOf(root, entry.name);
+  const inputs = resolvePath(entry.inputs, work.inputs, root);
+  const cacheFallback = inputs === path.resolve(work.inputs) ? work.cache : path.join(inputs, PROJECT_DATA_DIRNAME, 'cache');
+  return { inputs, preprocessed: work.preprocessed, cache: resolvePath(entry.cache, cacheFallback, root) };
 }
 
 /** The features folder, or undefined when the project has none (there is no default). */
 export function resolveFeatures(entry: ProjectEntry, configDir: string): string | undefined {
-  return (entry.features ?? '').trim() ? resolve(entry.features, '', configDir) : undefined;
+  return (entry.features ?? '').trim() ? resolvePath(entry.features, '', configDir) : undefined;
 }
 
-function resolve(raw: string | undefined, fallback: string, base: string): string {
+export function resolvePath(raw: string | undefined, fallback: string, base: string): string {
   const value = (raw ?? '').trim();
   if (!value) {
     return path.resolve(fallback);

@@ -5,7 +5,6 @@ A sidebar for the Spec2Test **input-processor**: create projects, drop in specs 
 ## Requirements
 
 - Docker (Docker Desktop on macOS/Windows, Docker Engine on Linux)
-- Python 3 (only to run `scripts/sync_projects.py`)
 - A clone of the `spec2test` repository
 
 ## Install (from source)
@@ -36,7 +35,8 @@ Notes:
 
 - Dropped files are **copied** into the project's inputs folder; your originals are not touched.
 - API keys are kept in the OS keychain (VS Code SecretStorage) and mirrored into the repo's `.env`, which the container reads. Changing keys or video/logging values needs a container restart: the **Apply and restart** bar does it.
-- Adding, editing or removing a project regenerates `docker-compose.override.yaml` (via `scripts/sync_projects.py`) and recreates the container, because every project is its own bind mount.
+- Projects live in `~/.spec2test/projects.json`. The container mounts only `~/.spec2test`, so adding, editing or removing a project never restarts it. After updating from an older version, press *Restart* once so the container gets the new mount.
+- Your inputs folder is never modified. A file is copied into the work area (`~/.spec2test/<project>/inputs`, an instant clone on APFS) only while it is processed, with progress on its card; if it is already processed (same name and hash) nothing is copied. Results are copied back to `<inputs>/.spec2test/cache`, which you can commit. The work area can be deleted at any time and is rebuilt from your folders.
 - **Start** builds the image first (a no-op when nothing changed), so an image built by an older version is repaired. A container that runs but does not answer for 30 s is shown as *Not responding* with a **Rebuild** button.
 - Opening a PDF uses the `tomoki1207.pdf` extension if installed (VS Code has no built-in PDF viewer).
 
@@ -76,7 +76,6 @@ What you get:
 | --- | --- | --- |
 | `spec2test.repoPath` | *(auto)* | Folder of the spec2test repository |
 | `spec2test.port` | `8003` | Host port of the input-processor |
-| `spec2test.pythonPath` | `python3` | Python used for `sync_projects.py` |
 | `spec2test.autoStartService` | `false` | Start the container when VS Code opens |
 
 ## Development

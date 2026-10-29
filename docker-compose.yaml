@@ -27,15 +27,17 @@ services:
       - .env
     ports:
       - "8003:8000"
-    # Project folders come from docker-compose.override.yaml (see
-    # 'python scripts/sync_projects.py').
+    # One mount for every project: projects.json plus <name>/{inputs,preprocessed,cache}.
+    # The VS Code extension sets SPEC2TEST_HOME; by default it is ~/.spec2test.
     volumes:
       - ./input-processor/src:/app/src
+      - ${SPEC2TEST_HOME:-${HOME}/.spec2test}:/projects
     environment:
       - PYTHONUNBUFFERED=1
       # Listen on all interfaces so the published port works. The Dockerfile sets
       # it too; repeating it here keeps an image built before that line working.
       - HOST=0.0.0.0
+      - INPUT_PROCESSOR_PROJECTS_CONFIG=/projects/projects.json
       - HF_HOME=/root/.cache/huggingface
       - HF_HUB_ENABLE_HF_TRANSFER=1
       - HF_TOKEN=${HF_TOKEN:-}

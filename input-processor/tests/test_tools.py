@@ -212,7 +212,7 @@ def test_process_files_returns_an_error_when_the_project_is_unmounted(
 
     payload = json.loads(call(tools.process_files, context_for("gamma")))
 
-    assert "sync_projects.py" in payload["error"]
+    assert "projects.json" in payload["error"]
 
 
 # --- list / get --------------------------------------------------------------

@@ -39,8 +39,8 @@ Optionally check the backend on its own first: `python -m pytest input-processor
    *Advanced*, change a value: an "Unsaved changes" bar offers Save / Discard.
 4. **Create a project.** **+** (or the dropdown's *New project…*) → name `demo` → *Use the default folder* (or *Choose the folder with my specs…*).
    Then open the project **⋮** menu and try *Change cache folder…* and *Open cache folder*: each acts on that one folder only.
-   *Expect:* a notification while the container is recreated; `projects.json` and
-   `docker-compose.override.yaml` contain `demo`; the project is selected.
+   *Expect:* no restart; `~/.spec2test/projects.json` contains `demo`; the project is selected.
+   Create a second project on an outside folder while the first is processing: the running job is not interrupted.
 5. **Drop files.** Drag the four files from Finder onto the **Drop files** line at the top of the
    sidebar, and one more from the VS Code Explorer. Include a video larger than 100 MB.
    *Expect:* cards appear as **New**; the originals are still where they were; an unsupported
@@ -84,4 +84,15 @@ Optionally check the backend on its own first: `python -m pytest input-processor
 
 - Reprocess redoes the model calls of the final summary; a PDF or Markdown's
   *pre-processed* file (image descriptions) is reused while its content is unchanged.
-- The extension needs a clone of the repository and Python 3 for `scripts/sync_projects.py`.
+- The extension still needs a clone of the repository (Compose file and `.env`) until it runs the published image.
+
+## Staged processing (single mount)
+
+1. After updating from an older version, press **Restart** once. `~/.spec2test/projects.json` exists and lists your old projects; old results are in each project's cache folder (default `<inputs>/.spec2test/cache`).
+2. Project on an **outside** folder: process a `.md` and a video larger than 1 GB.
+   *Expect:* the card says `Copying <file> (1.2 GB) to the Spec2Test work area…` (instant on APFS, a percentage elsewhere); afterwards `~/.spec2test/<project>/inputs` is empty, the result is in `<inputs>/.spec2test/cache`, and your original is untouched.
+3. Press **Process** again on the same file. *Expect:* it finishes at once as cached, with no copy.
+4. Delete `~/.spec2test/<project>` and reopen the sidebar. *Expect:* `ls ~/.spec2test/<project>/cache` is rebuilt, and the agent's `get_processed_content` still returns the content.
+5. Rename a processed input in Finder and process it. *Expect:* no model calls; the cache entry is re-keyed in the project cache and the old name is gone.
+6. Make the cache folder read-only (`chmod -w`) and process a small file. *Expect:* an error saying the result could not be copied and will be retried; after `chmod +w` the result appears in the project cache on the next refresh.
+7. Project without an outside folder (default): works as before, nothing is staged or copied.
