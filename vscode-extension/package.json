@@ -68,11 +68,11 @@
       },
       {
         "command": "spec2test.addFiles",
-        "title": "Spec2Test: Add files to the project\u2026"
+        "title": "Spec2Test: Add files to the project…"
       },
       {
         "command": "spec2test.chooseRepo",
-        "title": "Spec2Test: Choose the spec2test repository folder\u2026"
+        "title": "Spec2Test: Choose the spec2test repository folder…"
       },
       {
         "command": "spec2test.openWalkthrough",
@@ -95,11 +95,6 @@
           "type": "number",
           "default": 8003,
           "description": "Host port of the input-processor (docker-compose maps 8003 to the container's 8000)."
-        },
-        "spec2test.pythonPath": {
-          "type": "string",
-          "default": "python3",
-          "description": "Python used to run scripts/sync_projects.py."
         },
         "spec2test.autoStartService": {
           "type": "boolean",

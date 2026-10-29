@@ -2,6 +2,7 @@ import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import * as os from 'node:os';
 import type * as vscode from 'vscode';
 import { UNREACHABLE } from './core/health';
+import { dataRoot } from './core/projects';
 import type { DockerState } from './shared/messages';
 
 const SERVICE = 'input-processor';
@@ -14,7 +15,7 @@ function dockerEnv(): NodeJS.ProcessEnv {
       ? []
       : ['/usr/local/bin', '/opt/homebrew/bin', '/Applications/Docker.app/Contents/Resources/bin'];
   const separator = os.platform() === 'win32' ? ';' : ':';
-  return { ...process.env, PATH: [process.env.PATH ?? '', ...extra].join(separator) };
+  return { ...process.env, PATH: [process.env.PATH ?? '', ...extra].join(separator), SPEC2TEST_HOME: dataRoot() };
 }
 
 interface Result {
