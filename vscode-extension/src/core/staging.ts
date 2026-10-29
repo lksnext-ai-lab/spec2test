@@ -21,8 +21,10 @@ import type { WorkArea } from './projects';
 export interface Layout {
   /** The user's inputs folder. */
   inputs: string;
-  /** The user's cache folder. */
+  /** The user's folder for the processed results. */
   cache: string;
+  /** The user's folder for the pre-processed files (also paid for: image descriptions). */
+  preprocessed: string;
   work: WorkArea;
 }
 
@@ -31,83 +33,129 @@ export interface Result {
   error?: string;
 }
 
+type Key = 'cache' | 'preprocessed';
+type Baseline = Record<Key, string[]>;
+
 const PENDING_FILE = '.pending-sync.json';
+const ADOPTED_FILE = '.adopted-preprocessed';
 
 export const needsStaging = (layout: Layout): boolean => path.resolve(layout.inputs) !== path.resolve(layout.work.inputs);
-export const needsCacheSync = (layout: Layout): boolean => path.resolve(layout.cache) !== path.resolve(layout.work.cache);
 
-/** Top-level result files of a cache folder (`<input>.md`); history and dot-files are not entries. */
-export function entryFiles(dir: string): string[] {
+/** The folders that live outside the work area and so have to be kept in step with it. */
+function pairs(layout: Layout): { key: Key; user: string; work: string }[] {
+  return (['cache', 'preprocessed'] as const)
+    .map((key) => ({ key, user: layout[key], work: layout.work[key] }))
+    .filter((pair) => path.resolve(pair.user) !== path.resolve(pair.work));
+}
+
+export const needsSync = (layout: Layout): boolean => pairs(layout).length > 0;
+
+/**
+ * What counts as a result in a folder: `<input>.md` files in the cache (its `_segments` scratch folder
+ * is not a result), and anything not hidden in the pre-processed folder (`<input>.md`, `<input>_images/`).
+ */
+export function entryNames(dir: string, key: Key): string[] {
   if (!fs.existsSync(dir)) {
     return [];
   }
   return fs
     .readdirSync(dir, { withFileTypes: true })
-    .filter((item) => item.isFile() && item.name.endsWith('.md') && !item.name.startsWith('.'))
+    .filter((item) => !item.name.startsWith('.') && (key === 'preprocessed' || (item.isFile() && item.name.endsWith('.md'))))
     .map((item) => item.name);
 }
 
-function sameContent(a: string, b: string): boolean {
+const SMALL_FILE = 256 * 1024;
+
+/** Small files are compared by content; big ones (images) by size and modification time, which a copy preserves. */
+function sameFile(a: string, b: string): boolean {
   if (!fs.existsSync(a) || !fs.existsSync(b)) {
     return false;
   }
-  return fs.statSync(a).size === fs.statSync(b).size && fs.readFileSync(a).equals(fs.readFileSync(b));
-}
-
-function copyIfDifferent(from: string, to: string): boolean {
-  if (sameContent(from, to)) {
+  const left = fs.statSync(a);
+  const right = fs.statSync(b);
+  if (left.size !== right.size) {
     return false;
   }
-  fs.mkdirSync(path.dirname(to), { recursive: true });
-  fs.copyFileSync(from, to);
-  return true;
+  return left.size <= SMALL_FILE ? fs.readFileSync(a).equals(fs.readFileSync(b)) : Math.abs(left.mtimeMs - right.mtimeMs) < 2;
 }
 
-function copyMissingHistory(fromCache: string, toCache: string): void {
-  const from = path.join(fromCache, HISTORY_DIR);
+function copyFile(from: string, to: string): void {
+  fs.mkdirSync(path.dirname(to), { recursive: true });
+  fs.copyFileSync(from, to);
+  const time = fs.statSync(from);
+  fs.utimesSync(to, time.atime, time.mtime);
+}
+
+/** Make `to` equal `from`, file by file, leaving what is already equal alone. */
+function syncTree(from: string, to: string): void {
+  if (fs.statSync(from).isDirectory()) {
+    fs.mkdirSync(to, { recursive: true });
+    const names = new Set(fs.readdirSync(from));
+    for (const name of names) {
+      syncTree(path.join(from, name), path.join(to, name));
+    }
+    for (const name of fs.readdirSync(to)) {
+      if (!names.has(name)) {
+        fs.rmSync(path.join(to, name), { recursive: true, force: true });
+      }
+    }
+  } else if (!sameFile(from, to)) {
+    fs.rmSync(to, { recursive: true, force: true });
+    copyFile(from, to);
+  }
+}
+
+function copyMissingHistory(fromDir: string, toDir: string): void {
+  const from = path.join(fromDir, HISTORY_DIR);
   if (!fs.existsSync(from)) {
     return;
   }
   for (const name of fs.readdirSync(from)) {
-    const target = path.join(toCache, HISTORY_DIR, name);
+    const target = path.join(toDir, HISTORY_DIR, name);
     if (!fs.existsSync(target)) {
-      fs.mkdirSync(path.dirname(target), { recursive: true });
-      fs.copyFileSync(path.join(from, name), target);
+      copyFile(path.join(from, name), target);
     }
   }
 }
 
-/** Make the work cache equal to the project cache. Results the project does not have are dropped. */
+/** Make the work folders equal to the user's. Results the user's folders do not have are dropped. */
 export function mirrorIn(layout: Layout): void {
-  const { cache, work } = layout;
-  fs.mkdirSync(work.cache, { recursive: true });
-  const wanted = new Set(entryFiles(cache));
-  for (const name of wanted) {
-    copyIfDifferent(path.join(cache, name), path.join(work.cache, name));
-  }
-  for (const name of entryFiles(work.cache)) {
-    if (!wanted.has(name)) {
-      fs.rmSync(path.join(work.cache, name), { force: true });
+  for (const { key, user, work } of pairs(layout)) {
+    fs.mkdirSync(work, { recursive: true });
+    const wanted = new Set(entryNames(user, key));
+    for (const name of wanted) {
+      syncTree(path.join(user, name), path.join(work, name));
+    }
+    for (const name of entryNames(work, key)) {
+      if (!wanted.has(name)) {
+        fs.rmSync(path.join(work, name), { recursive: true, force: true });
+      }
     }
   }
+}
+
+/** What the work folders hold right now: the baseline for a later {@link syncBack}. */
+export function snapshot(layout: Layout): Baseline {
+  return { cache: entryNames(layout.work.cache, 'cache'), preprocessed: entryNames(layout.work.preprocessed, 'preprocessed') };
 }
 
 /**
- * Copy the results of a run into the project cache. `baseline` is what the work cache held
- * before the run: a baseline entry that is gone now was moved or re-keyed by the server, so it
- * goes from the project too. Anything else in the project cache is never deleted.
+ * Copy the results of a run into the user's folders. `baseline` is what the work folders held
+ * before the run: an entry that is gone now was moved or re-keyed by the server, so it goes from
+ * the user's folder too. Anything else in the user's folders is never deleted.
  */
-export function syncBack(layout: Layout, baseline: readonly string[]): void {
-  const { cache, work } = layout;
-  fs.mkdirSync(cache, { recursive: true });
-  copyMissingHistory(work.cache, cache);
-  const now = new Set(entryFiles(work.cache));
-  for (const name of now) {
-    copyIfDifferent(path.join(work.cache, name), path.join(cache, name));
-  }
-  for (const name of baseline) {
-    if (!now.has(name)) {
-      fs.rmSync(path.join(cache, name), { force: true });
+export function syncBack(layout: Layout, baseline: Baseline): void {
+  for (const { key, user, work } of pairs(layout)) {
+    fs.mkdirSync(user, { recursive: true });
+    copyMissingHistory(work, user);
+    const now = new Set(entryNames(work, key));
+    for (const name of now) {
+      syncTree(path.join(work, name), path.join(user, name));
+    }
+    for (const name of baseline[key]) {
+      if (!now.has(name)) {
+        fs.rmSync(path.join(user, name), { recursive: true, force: true });
+      }
     }
   }
 }
@@ -118,7 +166,7 @@ export function hasPending(layout: Layout): boolean {
   return fs.existsSync(pendingPath(layout));
 }
 
-function markPending(layout: Layout, baseline: readonly string[]): void {
+function markPending(layout: Layout, baseline: Baseline): void {
   fs.mkdirSync(layout.work.root, { recursive: true });
   fs.writeFileSync(pendingPath(layout), JSON.stringify({ baseline }), 'utf8');
 }
@@ -128,9 +176,11 @@ export function retryPending(layout: Layout): boolean {
   if (!hasPending(layout)) {
     return true;
   }
-  let baseline: string[] = [];
+  let baseline: Baseline = { cache: [], preprocessed: [] };
   try {
-    baseline = (JSON.parse(fs.readFileSync(pendingPath(layout), 'utf8')) as { baseline?: string[] }).baseline ?? [];
+    const stored = (JSON.parse(fs.readFileSync(pendingPath(layout), 'utf8')) as { baseline?: Baseline | string[] }).baseline;
+    // The first version stored only the cache entries, as a list.
+    baseline = Array.isArray(stored) ? { cache: stored, preprocessed: [] } : { cache: stored?.cache ?? [], preprocessed: stored?.preprocessed ?? [] };
   } catch {
     // An unreadable marker still means "results are waiting": copy without deleting anything.
   }
@@ -143,11 +193,31 @@ export function retryPending(layout: Layout): boolean {
   }
 }
 
-/** Bring the work cache up to date with the project; a no-op for managed projects. */
-export function refreshWork(layout: Layout): void {
-  if (!needsCacheSync(layout) || !retryPending(layout)) {
+/**
+ * Before pre-processed files lived in the user's folder they were only in the work area. Once,
+ * copy them over so the first mirror does not throw away what was paid for.
+ */
+function adoptPreprocessed(layout: Layout): void {
+  const marker = path.join(layout.work.root, ADOPTED_FILE);
+  const pair = pairs(layout).find((item) => item.key === 'preprocessed');
+  if (!pair || fs.existsSync(marker)) {
     return;
   }
+  for (const name of entryNames(pair.work, 'preprocessed')) {
+    if (!fs.existsSync(path.join(pair.user, name))) {
+      syncTree(path.join(pair.work, name), path.join(pair.user, name));
+    }
+  }
+  fs.mkdirSync(layout.work.root, { recursive: true });
+  fs.writeFileSync(marker, '', 'utf8');
+}
+
+/** Bring the work area up to date with the user's folders; a no-op for managed projects. */
+export function refreshWork(layout: Layout): void {
+  if (!needsSync(layout) || !retryPending(layout)) {
+    return;
+  }
+  adoptPreprocessed(layout);
   mirrorIn(layout);
 }
 
@@ -219,6 +289,7 @@ export async function copyWithProgress(
       target.on('finish', resolve);
       source.pipe(target);
     });
+    onProgress(total, total);
   } catch (error) {
     await fsp.rm(to, { force: true });
     throw error;
@@ -240,16 +311,16 @@ export interface StagedRun {
 /** Process one input through the work area; the user's input is never modified. */
 export async function runStaged(run: StagedRun): Promise<Result> {
   const { layout, name, signal, report } = run;
-  const sync = needsCacheSync(layout);
+  const sync = needsSync(layout);
   const stage = needsStaging(layout);
 
-  let baseline: string[] = [];
+  let baseline: Baseline = { cache: [], preprocessed: [] };
   if (sync) {
     if (!retryPending(layout)) {
       throw new Error(`Earlier results are waiting to be copied to ${layout.cache}, but that folder cannot be written.`);
     }
     mirrorIn(layout);
-    baseline = entryFiles(layout.work.cache);
+    baseline = snapshot(layout);
   }
 
   const staged = path.join(layout.work.inputs, name);
@@ -267,6 +338,8 @@ export async function runStaged(run: StagedRun): Promise<Result> {
     );
   }
 
+  // The server reports steps only for PDFs and videos; without this a text file would keep showing the copy.
+  report(`Processing ${name}…`);
   let result: Result;
   try {
     result = await run.process();
