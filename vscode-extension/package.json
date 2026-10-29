@@ -67,6 +67,10 @@
         "title": "Spec2Test: Show input-processor logs"
       },
       {
+        "command": "spec2test.installAgents",
+        "title": "Spec2Test: Add the Gherkin-Generator to this project"
+      },
+      {
         "command": "spec2test.addFiles",
         "title": "Spec2Test: Add files to the project…"
       },
@@ -170,7 +174,8 @@
     "vscode:prepublish": "npm run build"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.0"
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "fflate": "^0.8.3"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

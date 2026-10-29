@@ -39,6 +39,9 @@ export function MainView({ state, openSettings }: { state: AppState; openSetting
         <button className="icon-btn" title="New project" aria-label="New project" onClick={newProject}>
           <Icon name="plus" />
         </button>
+        <button className="icon-btn" title="Add the Gherkin-Generator agent to this workspace" aria-label="Add the Gherkin-Generator agent to this workspace" onClick={() => send({ type: 'installAgents' })}>
+          <Icon name="feature" />
+        </button>
         <button className="icon-btn" title="Settings" aria-label="Settings" onClick={openSettings}>
           <Icon name="settings" />
         </button>

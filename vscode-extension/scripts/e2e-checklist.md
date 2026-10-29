@@ -87,6 +87,15 @@ Optionally check the backend on its own first: `python -m pytest input-processor
 15. **Stop.** Footer menu → **Stop**. *Expect:* "Input-processor is stopped"; files and results
     remain on disk.
 
+## Gherkin-Generator installer
+
+1. Open an empty folder with a project created. Click the **feature** button in the header. *Expect:* a picker with Copilot, Claude Code and Codex; choose all three.
+2. *Expect:* `.github/agents/*.agent.md`, `.vscode/mcp.json`, `.claude/skills/gherkin-generator/SKILL.md`, `.claude/agents/web-crawler.md`, `.mcp.json`, `.agents/skills/gherkin-generator/SKILL.md` and `.codex/config.toml` exist; every config names `http://localhost:8003/mcp` with the project header, and `.codex/config.toml` has one `spec2test` block.
+3. Run it again. *Expect:* "0 file(s) written". Edit one agent file and run again: you are asked Overwrite / Keep mine.
+4. Create a second project and switch to it in the sidebar. *Expect:* the header changes in all three configs without any dialog.
+5. Copilot: start the servers from `.vscode/mcp.json` and list tools of `input-processor`. Claude Code: `claude mcp list` shows the three servers. Codex: trust the folder and check `/mcp`.
+6. Open a different folder for the first time. *Expect:* a notification offering to add the agent; *Never for this project* stops it from coming back.
+
 ## Known limits to keep in mind while testing
 
 - Reprocess redoes the model calls of the final summary; a PDF or Markdown's

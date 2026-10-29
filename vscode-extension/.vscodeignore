@@ -3,6 +3,7 @@
 !dist/webview.js
 !dist/webview.css
 !dist/providers/*.json
+!dist/agents/*
 !media/**
 !package.json
 !README.md
