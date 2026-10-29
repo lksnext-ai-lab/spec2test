@@ -19,3 +19,4 @@ build/
 # Test coverage artefacts (generated for SonarQube).
 /coverage.xml
 .coverage
+.env.sonar
