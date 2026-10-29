@@ -186,6 +186,7 @@ export class Controller implements vscode.Disposable {
     this.watchProject();
     await this.rescan();
     await this.probeDocker();
+    await this.followExtensionUpdate();
     this.timers.push(setInterval(() => void this.probeDocker(), 5000));
     this.context.subscriptions.push(
       vscode.workspace.onDidChangeConfiguration((event) => {
@@ -200,6 +201,16 @@ export class Controller implements vscode.Disposable {
       void this.startService();
     }
     setTimeout(() => void this.offerAgents(), 4000);
+  }
+
+  /** After the extension was updated, a running container still uses the old image: recreate it from the new one. */
+  private async followExtensionUpdate(): Promise<void> {
+    const last = this.context.globalState.get<string>('spec2test.lastVersion');
+    await this.context.globalState.update('spec2test.lastVersion', this.version);
+    if (last && last !== this.version && this.docker.state === 'outdated') {
+      void vscode.window.showInformationMessage(`Spec2Test updated to ${this.version}: updating the containers…`);
+      await this.startService();
+    }
   }
 
   dispose(): void {
