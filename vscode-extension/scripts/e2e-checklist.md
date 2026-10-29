@@ -77,7 +77,9 @@ Optionally check the backend on its own first: `python -m pytest input-processor
 12. **Agents still work.** Project **⋮** menu → *Use this project for agents*, then run the Gherkin generator agent.
     *Expect:* `.vscode/mcp.json` has `X-Spec2Test-Project: demo` and the agent's
     `process_files` / `list_processed_files` calls return the same files.
-13. **Remove a project.** Create a throw-away project with a file, press the trash button next to the project's **⋮** menu. *Expect:* a dialog with **Detach only** and **Detach and move … to the trash**. Detach only: the project disappears, the files stay on disk. Repeat with the trash option: the input files and their results go to the OS trash, any other file in the folder stays.
+13. **Remove a project.** Create a throw-away project with a file, press the trash button next to the project's **⋮** menu. *Expect:* for a project on an outside folder, no dialog: the project disappears, `~/.spec2test/<folder name>` is deleted, and your input folder keeps its files and `.spec2test/cache` and `.spec2test/preprocessed`. For a project that uses *Let Spec2Test keep the files*, a dialog says everything moves to the trash.
+    New project: type `Shop App`, then check it shows as "Shop App" in the dropdown while `projects.json` has `"name": "shop-app"`; the creation steps are inputs folder (choose first), then features folder (choose or later).
+    Processing a `.md` shows "Processing <file>…" (not a frozen copy percentage), and `<inputs>/.spec2test/preprocessed` appears next to `cache`.
 14. **Gherkin traceability.** Put a `.feature` file with `# Inputs:` / `# Source:` comments (see the README) in a folder, e.g. `features/`, naming two of your inputs and one name that does not exist.
     - Project **⋮** → *Set features folder…* → pick it, then press **Gherkin**. *Expect:* under each input card, "N scenarios · M features" and the scenarios; an input nobody cites says "Not referenced by any scenario"; a strip shows "1 unknown input".
     - Click a scenario. *Expect:* the `.feature` opens with the cursor on that scenario's line.

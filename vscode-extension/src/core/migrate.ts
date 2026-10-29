@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { readConfig, resolvePaths, resolvePath, workAreaOf, writeConfig, type ProjectEntry } from './projects';
+import { readConfig, resolvePaths, resolvePath, writeConfig, type ProjectEntry } from './projects';
 
 /**
  * Before the single mount, projects.json lived in the repository clone and every project had its
@@ -30,7 +30,7 @@ export function migrateLegacy(repoDir: string, root: string): string[] {
     if (!entry.cache) {
       copyMissing(legacyCache, paths.cache);
     }
-    copyMissing(legacyPre, workAreaOf(root, entry.name).preprocessed);
+    copyMissing(legacyPre, paths.preprocessed);
     notes.push(`Imported project '${entry.name}'.`);
     return migrated;
   });

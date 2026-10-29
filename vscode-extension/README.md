@@ -39,7 +39,7 @@ A `.vsix` install does not update by itself, so the extension checks the latest 
 
 ## Where things live, on each OS
 
-The **data folder** (`~/.spec2test` by default: `/Users/you/.spec2test` on macOS, `C:\Users\you\.spec2test` on Windows, `/home/you/.spec2test` on Linux) holds `projects.json` and a disposable work area per project. Change it with *Spec2Test: Change the data folder…* or **Settings → Advanced → Data folder**; the extension offers to copy your projects along and recreates the container with the new mount. Your input folders and their results (`<inputs>/.spec2test/cache`) are never moved.
+The **data folder** (`~/.spec2test` by default: `/Users/you/.spec2test` on macOS, `C:\Users\you\.spec2test` on Windows, `/home/you/.spec2test` on Linux) holds `projects.json` and a disposable work area per project. Change it with *Spec2Test: Change the data folder…* or **Settings → Advanced → Data folder**; the extension offers to copy your projects along and recreates the container with the new mount. Your input folders and their results (`<inputs>/.spec2test/cache` and `<inputs>/.spec2test/preprocessed`) are never moved.
 
 - **macOS:** a data folder outside your home must be shared with Docker Desktop (Settings → Resources → File sharing).
 - **Windows:** paths are passed to Docker with forward slashes (`C:/Users/you/.spec2test`). With the WSL2 backend every drive works. Large videos are copied with a progress percentage because NTFS has no instant clone.
@@ -62,7 +62,8 @@ The servers point at the containers (`input-processor` with the selected project
 **Main page**
 
 - **Top bar:** a searchable project dropdown (with *New project…*), a **+** button and the **⚙** settings button.
-- **Project menu (⋮):** *Open* and *Change…* entries for each of the three folders (inputs, cache, pre-processed), use the project for agents, and remove it (there is also a trash button next to the menu). Removing asks whether to **detach only** or also **move the project's inputs and results to the trash**; other files in those folders are never touched. Changing a folder does not move existing files.
+- **Project menu (⋮):** *Open* and *Change…* entries for each of the three folders (inputs, cache, pre-processed), use the project for agents, and remove it (there is also a trash button next to the menu). Removing a project forgets it and deletes Spec2Test's temporary work area; your input folder is never touched, and the processed results and pre-processed files you paid for stay in `<inputs>/.spec2test`. Only a project whose files live in Spec2Test's own folder asks first, because removing it moves everything, inputs included, to the trash. Changing a folder does not move existing files.
+- **New project:** type any name ("Shop app"); the extension derives the folder-safe name (`shop-app`) and shows what you typed. Then choose the folder with your specs first, or let Spec2Test keep the files, and finally the folder of your `.feature` files, or set it later.
 - **Drop files** (a small native section above the page): drag files onto it from Finder/Explorer or from the VS Code Explorer, or click it to choose files. It has to be native because VS Code webviews cannot receive drops from the Explorer.
 - **Files:** an *Add files…* button, then a card per file with its type icon, status, progress and actions:
   **Original**, **Pre-processed** and **Result** open the file in VS Code; the icons preview the result, show extracted images, compare with earlier results, process / reprocess and remove (to the trash).

@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { migrateLegacy } from '../src/core/migrate';
 import { readConfig, resolvePaths, workAreaOf } from '../src/core/projects';
-import { entryFiles, hasPending, isUpToDate, mirrorIn, refreshWork, runStaged, syncBack, type Layout } from '../src/core/staging';
+import { entryNames, hasPending, isUpToDate, mirrorIn, refreshWork, runStaged, snapshot, syncBack, type Layout } from '../src/core/staging';
 
 const sha = (text: string) => createHash('sha256').update(text).digest('hex');
 const entry = (source: string, text: string) => `---\nsource: "${source}"\nsha256: ${sha(text)}\n---\nbody of ${source}\n`;
@@ -21,7 +21,7 @@ const write = (file: string, text: string) => {
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 's2t-stage-'));
   const project = path.join(root, 'user', 'specs');
-  layout = { inputs: project, cache: path.join(project, '.spec2test', 'cache'), work: workAreaOf(path.join(root, 'data'), 'shop') };
+  layout = { inputs: project, cache: path.join(project, '.spec2test', 'cache'), preprocessed: path.join(project, '.spec2test', 'preprocessed'), work: workAreaOf(path.join(root, 'data'), 'shop') };
   fs.mkdirSync(project, { recursive: true });
 });
 
@@ -44,7 +44,7 @@ describe('mirrorIn / syncBack', () => {
     write(path.join(layout.cache, 'a.pdf.md'), 'A');
     write(path.join(layout.work.cache, 'gone.pdf.md'), 'old');
     mirrorIn(layout);
-    expect(entryFiles(layout.work.cache)).toEqual(['a.pdf.md']);
+    expect(entryNames(layout.work.cache, 'cache')).toEqual(['a.pdf.md']);
     expect(fs.readFileSync(path.join(layout.work.cache, 'a.pdf.md'), 'utf8')).toBe('A');
   });
 
@@ -52,7 +52,7 @@ describe('mirrorIn / syncBack', () => {
     write(path.join(layout.cache, 'a.pdf.md'), 'old');
     write(path.join(layout.work.cache, 'a.pdf.md'), 'new');
     write(path.join(layout.work.cache, '.history', 'a.pdf.12345678.20260101T000000Z.md'), 'archived');
-    syncBack(layout, ['a.pdf.md']);
+    syncBack(layout, { cache: ['a.pdf.md'], preprocessed: [] });
     expect(fs.readFileSync(path.join(layout.cache, 'a.pdf.md'), 'utf8')).toBe('new');
     expect(fs.existsSync(path.join(layout.cache, '.history', 'a.pdf.12345678.20260101T000000Z.md'))).toBe(true);
   });
@@ -61,8 +61,62 @@ describe('mirrorIn / syncBack', () => {
     write(path.join(layout.cache, 'old-name.pdf.md'), 'x');
     write(path.join(layout.cache, 'pulled.pdf.md'), 'from git');
     write(path.join(layout.work.cache, 'new-name.pdf.md'), 'x');
-    syncBack(layout, ['old-name.pdf.md']);
-    expect(entryFiles(layout.cache).sort()).toEqual(['new-name.pdf.md', 'pulled.pdf.md']);
+    syncBack(layout, { cache: ['old-name.pdf.md'], preprocessed: [] });
+    expect(entryNames(layout.cache, 'cache').sort()).toEqual(['new-name.pdf.md', 'pulled.pdf.md']);
+  });
+});
+
+describe('pre-processed files', () => {
+  const pre = () => path.join(layout.preprocessed);
+
+  it('copies the pre-processed file and its images back next to the results, and mirrors them in again', async () => {
+    write(path.join(layout.inputs, 'a.pdf'), 'pdf');
+    await run('a.pdf', {
+      process: async () => {
+        write(path.join(layout.work.cache, 'a.pdf.md'), entry('a.pdf', 'pdf'));
+        write(path.join(layout.work.preprocessed, 'a.pdf.md'), 'pre');
+        write(path.join(layout.work.preprocessed, 'a.pdf_images', 'img-1.png'), 'png');
+        return { status: 'new' };
+      },
+    });
+    expect(fs.readFileSync(path.join(pre(), 'a.pdf.md'), 'utf8')).toBe('pre');
+    expect(fs.existsSync(path.join(pre(), 'a.pdf_images', 'img-1.png'))).toBe(true);
+
+    fs.rmSync(layout.work.root, { recursive: true, force: true });
+    refreshWork(layout);
+    expect(fs.existsSync(path.join(layout.work.preprocessed, 'a.pdf_images', 'img-1.png'))).toBe(true);
+  });
+
+  it('does not treat scratch folders of the cache as results', () => {
+    write(path.join(layout.work.cache, '_segments', 'big.mp4'), 'x');
+    expect(entryNames(layout.work.cache, 'cache')).toEqual([]);
+    expect(snapshot(layout).cache).toEqual([]);
+  });
+
+  it('adopts pre-processed files that only the work area had, once, instead of dropping them', () => {
+    write(path.join(layout.work.preprocessed, 'old.pdf.md'), 'paid');
+    refreshWork(layout);
+    expect(fs.readFileSync(path.join(pre(), 'old.pdf.md'), 'utf8')).toBe('paid');
+    // After that the user's folder is authoritative: what is removed there goes from the work area too.
+    fs.rmSync(path.join(pre(), 'old.pdf.md'));
+    refreshWork(layout);
+    expect(fs.existsSync(path.join(layout.work.preprocessed, 'old.pdf.md'))).toBe(false);
+  });
+
+  it('leaves big unchanged images alone and replaces a changed one', () => {
+    const big = 'x'.repeat(300 * 1024);
+    write(path.join(pre(), 'a.pdf_images', 'big.png'), big);
+    refreshWork(layout);
+    const copy = path.join(layout.work.preprocessed, 'a.pdf_images', 'big.png');
+    const before = fs.statSync(copy).ino;
+    refreshWork(layout);
+    expect(fs.statSync(copy).ino).toBe(before);
+    const changed = path.join(pre(), 'a.pdf_images', 'big.png');
+    write(changed, 'y'.repeat(300 * 1024));
+    const later = new Date(Date.now() + 60_000);
+    fs.utimesSync(changed, later, later);
+    refreshWork(layout);
+    expect(fs.readFileSync(copy, 'utf8')[0]).toBe('y');
   });
 });
 
@@ -156,11 +210,11 @@ describe('runStaged', () => {
         return { status: 'renamed' };
       },
     });
-    expect(entryFiles(layout.cache)).toEqual(['new.md.md']);
+    expect(entryNames(layout.cache, 'cache')).toEqual(['new.md.md']);
   });
 
   it('does not stage or copy for a managed project (inputs and cache in the work area)', async () => {
-    layout = { inputs: layout.work.inputs, cache: layout.work.cache, work: layout.work };
+    layout = { inputs: layout.work.inputs, cache: layout.work.cache, preprocessed: layout.work.preprocessed, work: layout.work };
     write(path.join(layout.inputs, 'a.md'), 'hello');
     const result = await run('a.md');
     expect(result.status).toBe('new');
@@ -172,7 +226,7 @@ describe('runStaged', () => {
     refreshWork(layout);
     fs.rmSync(layout.work.root, { recursive: true, force: true });
     refreshWork(layout);
-    expect(entryFiles(layout.work.cache)).toEqual(['a.md.md']);
+    expect(entryNames(layout.work.cache, 'cache')).toEqual(['a.md.md']);
   });
 });
 
