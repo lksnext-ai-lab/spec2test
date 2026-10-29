@@ -39,7 +39,7 @@ jobs:
         with:
           python-version: "3.12"
       # Same pins as web-crawler/Dockerfile; no browser and no network needed.
-      - run: pip install pytest uvicorn "mcp[cli]>=1.9.1,<2" "crawl4ai==0.9.4"
+      - run: pip install pytest uvicorn "mcp[cli]>=1.9.1,<2" "crawl4ai==0.9.5"
       - run: python -m pytest web-crawler/tests -q
 
   extension:

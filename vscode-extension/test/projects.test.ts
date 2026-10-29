@@ -136,6 +136,14 @@ describe('slugify and displayName', () => {
     expect(validateName(slugify('Ünïcode  ✓ name'))).toBeUndefined();
   });
 
+  it('trims trailing separators without slowing down on long runs of them', () => {
+    expect(slugify('abc---')).toBe('abc');
+    expect(slugify('a' + '-._'.repeat(20000) + 'b' + '.'.repeat(20000))).toBe('a-b');
+    const started = Date.now();
+    slugify('x' + '-'.repeat(100000));
+    expect(Date.now() - started).toBeLessThan(500);
+  });
+
   it('adds a number when the folder name is taken, and keeps it short', () => {
     expect(slugify('Shop', ['shop'])).toBe('shop-2');
     expect(slugify('Shop', ['shop', 'shop-2'])).toBe('shop-3');

@@ -36,7 +36,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install Python packages. crawl4ai is pinned; mcp stays on 1.x because the server
 # uses mcp.server.fastmcp, which SDK 2.x renamed (same bound as pyproject.toml).
-RUN python -m pip install --no-cache-dir uvicorn "mcp[cli]>=1.9.1,<2" "crawl4ai==0.9.4"
+RUN python -m pip install --no-cache-dir uvicorn "mcp[cli]>=1.9.1,<2" "crawl4ai==0.9.5"
 
 # Install Playwright browsers
 RUN python -m playwright install chromium
