@@ -49,9 +49,9 @@ export function parseFrontMatter(text: string): Record<string, string> {
     if (line.trim() === '---') {
       break;
     }
-    const match = /^([A-Za-z_][\w-]*):\s*(.*)$/.exec(line);
+    const match = /^([A-Za-z_][\w-]*):\s*(\S.*)?$/.exec(line);
     if (match) {
-      values[match[1]] = match[2].trim().replace(/^(["'])(.*)\1$/, '$2');
+      values[match[1]] = (match[2] ?? '').trim().replace(/^(["'])(.*)\1$/, '$2');
     }
   }
   return values;
@@ -104,7 +104,7 @@ export function listHistory(cacheDir: string, name: string): HistoryItem[] {
   return fs
     .readdirSync(dir)
     .filter((file) => file.startsWith(`${name}.`) && pattern.test(file.slice(name.length + 1)))
-    .sort()
+    .sort((a, b) => a.localeCompare(b))
     .reverse()
     .map((file) => {
       const stamp = pattern.exec(file.slice(name.length + 1))![1];
@@ -125,7 +125,7 @@ export class FileIndex {
   async sha256(file: string): Promise<string> {
     const stat = fs.statSync(file);
     const known = this.hashes.get(file);
-    if (known && known.size === stat.size && known.mtimeMs === stat.mtimeMs) {
+    if (known?.size === stat.size && known.mtimeMs === stat.mtimeMs) {
       return known.sha;
     }
     const sha = await new Promise<string>((resolve, reject) => {

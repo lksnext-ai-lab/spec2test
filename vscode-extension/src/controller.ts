@@ -58,7 +58,7 @@ export class Controller implements vscode.Disposable {
   private providers: ProviderInfo[] = [];
   private index?: FileIndex;
   private watchers: vscode.Disposable[] = [];
-  private timers: NodeJS.Timeout[] = [];
+  private readonly timers: NodeJS.Timeout[] = [];
   private rescanTimer?: NodeJS.Timeout;
   private jobProject?: string;
   private unreachableSince?: number;
@@ -401,8 +401,8 @@ export class Controller implements vscode.Disposable {
       container: CONTAINER_NAME.webCrawler,
       image,
       port: this.crawlerPort,
-      spec: async (resolved) => webCrawlerSpec({ image: resolved, port: this.crawlerPort, authActionsFile: fs.existsSync(login) ? login : undefined }),
-      secretValues: async () => ({}),
+      spec: (resolved) => Promise.resolve(webCrawlerSpec({ image: resolved, port: this.crawlerPort, authActionsFile: fs.existsSync(login) ? login : undefined })),
+      secretValues: () => Promise.resolve({}),
     };
   }
 
@@ -943,8 +943,9 @@ export class Controller implements vscode.Disposable {
       }
       const { written, skipped } = applyPlan(plan, overwrite);
       await this.context.workspaceState.update(AGENTS_KEY, { version: this.version, targets });
+      const kept = skipped.length ? `, ${skipped.length} kept` : '';
       const notes = [
-        `${written.length} file(s) written${skipped.length ? `, ${skipped.length} kept` : ''}.`,
+        `${written.length} file(s) written${kept}.`,
         project ? `The agents use project '${project}'.` : 'Create a project, then run this again so the agents know which one to use.',
         targets.includes('copilot') ? 'Copilot: start the servers from .vscode/mcp.json.' : '',
         targets.includes('claude') ? 'Claude Code: approve the project servers on first use.' : '',
@@ -1122,13 +1123,7 @@ export class Controller implements vscode.Disposable {
         rejected.push(uri.toString());
         continue;
       }
-      const stat = fs.existsSync(uri.fsPath) ? fs.statSync(uri.fsPath) : undefined;
-      const candidates = stat?.isDirectory()
-        ? fs.readdirSync(uri.fsPath).map((name) => path.join(uri.fsPath, name)).filter((file) => fs.statSync(file).isFile())
-        : stat
-          ? [uri.fsPath]
-          : [];
-      for (const file of candidates) {
+      for (const file of filesOf(uri.fsPath)) {
         (isSupported(file) ? sources : rejected).push(isSupported(file) ? file : path.basename(file));
       }
     }
@@ -1199,7 +1194,8 @@ export class Controller implements vscode.Disposable {
     await this.rescan();
     const failed = this.jobs.filter((job) => job.status === 'error');
     if (done && failed.length > 0) {
-      void vscode.window.showErrorMessage(`${failed.length} file(s) failed: ${failed.map((job) => `${job.file} (${job.error})`).join('; ')}`);
+      const details = failed.map((job) => `${job.file} (${job.error})`).join('; ');
+      void vscode.window.showErrorMessage(`${failed.length} file(s) failed: ${details}`);
     }
   }
 
@@ -1314,6 +1310,20 @@ export class Controller implements vscode.Disposable {
     }
     await this.rescan();
   }
+}
+
+/** What a dropped path stands for: itself when it is a file, the files directly inside it when it is a folder. */
+function filesOf(target: string): string[] {
+  if (!fs.existsSync(target)) {
+    return [];
+  }
+  if (!fs.statSync(target).isDirectory()) {
+    return [target];
+  }
+  return fs
+    .readdirSync(target)
+    .map((name) => path.join(target, name))
+    .filter((file) => fs.statSync(file).isFile());
 }
 
 function tail(text: string, lines = 12): string {

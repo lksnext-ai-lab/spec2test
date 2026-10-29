@@ -37,6 +37,10 @@ describe('mapping', () => {
     expect(['a.docx', 'a.png', 'a'].some(isSupported)).toBe(false);
   });
 
+  it('reads front matter lines with no value, extra spaces and quotes', () => {
+    expect(parseFrontMatter('---\nempty:\nspaced:    value   \nquoted: "a b"\n---\n')).toEqual({ empty: '', spaced: 'value', quoted: 'a b' });
+  });
+
   it('parses front matter', () => {
     expect(parseFrontMatter('---\nsource: "a.txt"\nsize: 5\n---\nbody')).toEqual({ source: 'a.txt', size: '5' });
     expect(parseFrontMatter('no front matter')).toEqual({});
