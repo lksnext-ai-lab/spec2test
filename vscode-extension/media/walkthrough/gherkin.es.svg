@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="400" viewBox="0 0 560 400" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13">
+  <title>Spec2Test: vista de trazabilidad Gherkin</title>
+  <rect width="560" height="400" rx="8" fill="#1e1e1e"/>
+  <rect x="20" y="20" width="300" height="360" rx="6" fill="#252526" stroke="#3c3c3c"/>
+  <rect x="32" y="32" width="276" height="26" rx="4" fill="#3c3c3c"/>
+  <text x="42" y="50" fill="#cccccc">shop-app  ▾</text>
+  <text x="285" y="51" fill="#cccccc">⋮</text>
+  <rect x="32" y="70" width="84" height="26" rx="4" fill="#3c3c3c"/>
+  <text x="42" y="88" fill="#cccccc">Add files…</text>
+  <rect x="130" y="70" width="86" height="26" rx="4" fill="#0e639c" stroke="#d9822b" stroke-width="2"/>
+  <text x="140" y="88" fill="#cccccc">☑ Gherkin</text>
+  <rect x="216" y="70" width="26" height="26" rx="0" fill="#0e639c" stroke="#d9822b" stroke-width="2"/>
+  <text x="223" y="88" fill="#ffffff">⟳</text>
+  <rect x="250" y="70" width="58" height="26" rx="4" fill="#3c3c3c"/>
+  <text x="258" y="88" fill="#cccccc">Process</text>
+  <text x="34" y="116" fill="#9d9d9d" font-size="11">2 features · 5 scenarios in features/</text>
+  <text x="34" y="134" fill="#d29922" font-size="12">⚠ 1 scenario without a source</text>
+  <rect x="32" y="146" width="276" height="170" rx="4" fill="#2d2d30" stroke="#3c3c3c"/>
+  <text x="44" y="168" fill="#cccccc" font-weight="600">checkout-flow.mp4</text>
+  <text x="56" y="188" fill="#4fc1ff">▤ checkout.feature</text>
+  <text x="68" y="206" fill="#cccccc">◇ Pay with a saved card</text>
+  <text x="68" y="224" fill="#cccccc">◇ Reject an expired card</text>
+  <text x="44" y="248" fill="#cccccc" font-weight="600">requirements.pdf</text>
+  <text x="56" y="268" fill="#4fc1ff">▤ checkout.feature</text>
+  <text x="68" y="286" fill="#cccccc">◇ Apply a discount code</text>
+  <text x="56" y="306" fill="#4fc1ff">▤ cart.feature</text>
+  <g fill="#d9822b"><circle cx="173" cy="110" r="12"/><circle cx="229" cy="110" r="12"/><circle cx="318" cy="134" r="12"/><circle cx="318" cy="216" r="12"/></g>
+  <g fill="#fff" font-weight="700" text-anchor="middle"><text x="173" y="115">1</text><text x="229" y="115">2</text><text x="318" y="139">3</text><text x="318" y="221">4</text></g>
+  <text x="350" y="60" fill="#cccccc" font-weight="600">Antes de empezar</text>
+  <text x="350" y="78" fill="#9d9d9d">menú ⋮ → Set features folder…</text>
+  <text x="350" y="116" fill="#cccccc" font-weight="600">1  Gherkin</text>
+  <text x="350" y="134" fill="#9d9d9d">activa la vista de trazabilidad</text>
+  <text x="350" y="160" fill="#cccccc" font-weight="600">2  ⟳ Recargar</text>
+  <text x="350" y="178" fill="#9d9d9d">relee todos los .feature y</text>
+  <text x="350" y="194" fill="#9d9d9d">actualiza el archivo de trazabilidad</text>
+  <text x="350" y="220" fill="#cccccc" font-weight="600">3  Avisos</text>
+  <text x="350" y="238" fill="#9d9d9d">inputs desconocidos y</text>
+  <text x="350" y="254" fill="#9d9d9d">escenarios sin fuente</text>
+  <text x="350" y="280" fill="#cccccc" font-weight="600">4  Input → feature → escenario</text>
+  <text x="350" y="298" fill="#9d9d9d">haz clic en un escenario para abrir</text>
+  <text x="350" y="314" fill="#9d9d9d">el .feature en esa línea</text>
+</svg>

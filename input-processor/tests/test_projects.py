@@ -443,6 +443,26 @@ def test_adding_a_project_does_not_disturb_the_running_one(tmp_path: Path) -> No
     assert pool.for_name("beta").project.name == "beta"
 
 
+def test_switching_provider_and_model_needs_no_restart(tmp_path: Path) -> None:
+    file = write_config(tmp_path, {"projects": [{"name": "alpha", "llm": {"provider": "openai"}}]})
+    mounted(tmp_path, "alpha")
+    pool = RuntimePool(ProjectRegistry(file, tmp_path / "projects"), build_default_registry(), ENV, Settings())
+    before = pool.for_name("alpha")
+    assert before.service().model == "gpt-4o-mini"
+
+    write_config(
+        tmp_path,
+        {"projects": [{"name": "alpha", "llm": {"provider": "deepseek", "model": "deepseek-v4-flash"}}]},
+    )
+    after = pool.for_name("alpha")
+
+    assert after is not before
+    assert after.lock is before.lock
+    assert after.service().provider == "deepseek"
+    assert after.service().model == "deepseek-v4-flash"
+    assert pool.for_name("alpha") is after
+
+
 def test_a_registry_without_the_default_provider_still_builds(tmp_path: Path) -> None:
     """The pool takes any registry, which is what makes the providers pluggable."""
     runtime = ProjectRuntime(

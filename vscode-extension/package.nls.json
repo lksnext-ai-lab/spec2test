@@ -1,0 +1,19 @@
+{
+  "walkthrough.title": "Get started with Spec2Test",
+  "walkthrough.description": "From an empty machine to Gherkin features you can trace back to your specs.",
+  "walkthrough.docker.title": "Set up the extension and start Docker",
+  "walkthrough.docker.description": "Spec2Test runs in Docker containers that the extension pulls and starts for you. Watch the status in the sidebar footer.\n[Open Spec2Test](command:spec2test.focus)\n[Start the containers](command:spec2test.startService)",
+  "walkthrough.docker.media": "media/walkthrough/docker.md",
+  "walkthrough.keys.title": "Add your API key",
+  "walkthrough.keys.description": "Sidebar → ⚙ Settings → Environment: paste the key of your LLM provider and press Apply. Keys stay in your OS keychain.",
+  "walkthrough.keys.media": "media/walkthrough/keys.md",
+  "walkthrough.project.title": "Create a project and process your inputs",
+  "walkthrough.project.description": "New project (+), choose the inputs and features folders, drop your specs and recordings, then press Process.\n[Add files to the project](command:spec2test.addFiles)",
+  "walkthrough.project.media": "media/walkthrough/project.md",
+  "walkthrough.agents.title": "Add the Gherkin-Generator and web-crawler agents",
+  "walkthrough.agents.description": "Copies the agents and the MCP settings (input-processor, web-crawler, Playwright) into the open folder, for Copilot, Claude Code or Codex.\n[Add the agents to this project](command:spec2test.installAgents)",
+  "walkthrough.agents.media": "media/walkthrough/agents.md",
+  "walkthrough.gherkin.title": "Check the traceability",
+  "walkthrough.gherkin.description": "Set the features folder, press Gherkin in the sidebar and follow each input to its features and scenarios; fix any warning.\n[Open Spec2Test](command:spec2test.focus)",
+  "walkthrough.gherkin.media": "media/walkthrough/gherkin.md"
+}

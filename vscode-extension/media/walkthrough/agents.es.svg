@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="340" viewBox="0 0 560 340" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13">
+  <title>Spec2Test: añadir los agentes Gherkin-Generator y web-crawler</title>
+  <rect width="560" height="340" rx="8" fill="#1e1e1e"/>
+  <rect x="20" y="20" width="270" height="70" rx="6" fill="#252526" stroke="#3c3c3c"/>
+  <rect x="32" y="32" width="110" height="26" rx="4" fill="#3c3c3c"/>
+  <text x="42" y="50" fill="#cccccc">shop-app  ▾</text>
+  <rect x="150" y="32" width="26" height="26" rx="4" fill="#3c3c3c"/>
+  <text x="158" y="51" fill="#cccccc" font-size="16">+</text>
+  <rect x="182" y="32" width="38" height="26" rx="4" fill="#3c3c3c" stroke="#d9822b" stroke-width="2"/>
+  <text x="192" y="50" fill="#cccccc">🗎</text>
+  <rect x="228" y="32" width="38" height="26" rx="4" fill="#3c3c3c"/>
+  <text x="238" y="50" fill="#cccccc">⚙</text>
+  <text x="32" y="80" fill="#9d9d9d" font-size="11">Barra superior de la barra lateral de Spec2Test</text>
+  <rect x="20" y="110" width="270" height="130" rx="6" fill="#252526" stroke="#d9822b" stroke-width="2"/>
+  <text x="34" y="134" fill="#cccccc" font-weight="600">Add the Gherkin-Generator for…</text>
+  <text x="34" y="164" fill="#cccccc">☑  GitHub Copilot</text>
+  <text x="34" y="186" fill="#cccccc">☐  Claude Code</text>
+  <text x="34" y="208" fill="#cccccc">☐  Codex</text>
+  <text x="34" y="230" fill="#9d9d9d" font-size="11">Elige las herramientas que usas en este proyecto</text>
+  <rect x="20" y="256" width="270" height="68" rx="6" fill="#252526" stroke="#3c3c3c"/>
+  <text x="34" y="278" fill="#cccccc" font-family="Menlo,monospace" font-size="12">.github/agents/gherkin-generator.agent.md</text>
+  <text x="34" y="296" fill="#cccccc" font-family="Menlo,monospace" font-size="12">.github/agents/web-crawler.agent.md</text>
+  <text x="34" y="314" fill="#cccccc" font-family="Menlo,monospace" font-size="12">.vscode/mcp.json</text>
+  <g fill="#d9822b"><circle cx="201" cy="22" r="12"/><circle cx="300" cy="125" r="12"/><circle cx="300" cy="266" r="12"/></g>
+  <g fill="#fff" font-weight="700" text-anchor="middle"><text x="201" y="27">1</text><text x="300" y="130">2</text><text x="300" y="271">3</text></g>
+  <text x="330" y="50" fill="#cccccc" font-weight="600">1  Añadir agentes</text>
+  <text x="330" y="68" fill="#9d9d9d">copia los agentes en la</text>
+  <text x="330" y="84" fill="#9d9d9d">carpeta abierta en VS Code</text>
+  <text x="330" y="130" fill="#cccccc" font-weight="600">2  Elige tu herramienta</text>
+  <text x="330" y="148" fill="#9d9d9d">Copilot, Claude Code, Codex</text>
+  <text x="330" y="272" fill="#cccccc" font-weight="600">3  Archivos escritos</text>
+  <text x="330" y="290" fill="#9d9d9d">+ servidores MCP: input-processor,</text>
+  <text x="330" y="306" fill="#9d9d9d">web-crawler, Playwright</text>
+</svg>

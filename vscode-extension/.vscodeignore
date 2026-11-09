@@ -6,4 +6,5 @@
 !dist/agents/*
 !media/**
 !package.json
+!package.nls*.json
 !README.md

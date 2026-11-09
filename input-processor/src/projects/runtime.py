@@ -46,6 +46,7 @@ class ProjectRuntime:
         providers: ProviderRegistry,
         env: Mapping[str, str],
         settings: Settings,
+        lock: Optional[threading.Lock] = None,
     ) -> None:
         self.project = project
         self.providers = providers
@@ -53,7 +54,7 @@ class ProjectRuntime:
         self._env = env
         self._handles: dict[tuple[str, str], LLMHandle] = {}
         self._service: Optional[ProcessingService] = None
-        self._lock = threading.Lock()
+        self._lock = lock or threading.Lock()
 
     @property
     def lock(self) -> threading.Lock:
@@ -186,11 +187,20 @@ class RuntimePool:
         return self.for_project(self.projects.get(name))
 
     def for_project(self, project: Project) -> ProjectRuntime:
+        """Cached runtime, rebuilt when ``projects.json`` changed the project.
+
+        Switching provider or model therefore needs no container restart. The
+        new runtime keeps the old lock, so a request still running on the old
+        settings finishes before one on the new settings starts.
+        """
         with self._lock:
             runtime = self._runtimes.get(project.name)
-            if runtime is None:
-                runtime = ProjectRuntime(project, self.providers, self._env, self.settings)
+            if runtime is None or runtime.project != project:
+                lock = runtime.lock if runtime is not None else None
+                runtime = ProjectRuntime(project, self.providers, self._env, self.settings, lock)
                 self._runtimes[project.name] = runtime
+                if lock is not None:
+                    _log.info("Project '%s' changed in projects.json; reloaded.", project.name)
             return runtime
 
     def project_names(self) -> tuple[str, ...]:
