@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="320" viewBox="0 0 560 320" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13">
+  <title>Spec2Test settings: Environment tab with API keys</title>
+  <rect width="560" height="320" rx="8" fill="#1e1e1e"/>
+  <rect x="20" y="20" width="300" height="280" rx="6" fill="#252526" stroke="#3c3c3c"/>
+  <rect x="32" y="30" width="28" height="24" rx="4" fill="#3c3c3c"/>
+  <text x="40" y="47" fill="#cccccc" font-size="15">←</text>
+  <text x="70" y="47" fill="#bbbbbb" font-weight="600">Settings</text>
+  <text x="34" y="82" fill="#9d9d9d">Models</text>
+  <text x="100" y="82" fill="#ffffff" font-weight="600">Environment</text>
+  <line x1="98" y1="88" x2="184" y2="88" stroke="#d9822b" stroke-width="2"/>
+  <text x="196" y="82" fill="#9d9d9d">Video</text>
+  <text x="242" y="82" fill="#9d9d9d">Advanced</text>
+  <text x="34" y="116" fill="#bbbbbb">OpenAI</text>
+  <rect x="34" y="124" width="220" height="26" rx="4" fill="#3c3c3c" stroke="#d9822b" stroke-width="2"/>
+  <text x="44" y="142" fill="#cccccc">••••••••••••••••</text>
+  <rect x="262" y="124" width="28" height="26" rx="4" fill="#3c3c3c"/>
+  <text x="271" y="142" fill="#cccccc">✕</text>
+  <text x="34" y="176" fill="#bbbbbb">Google</text>
+  <rect x="34" y="184" width="220" height="26" rx="4" fill="#3c3c3c"/>
+  <text x="44" y="202" fill="#9d9d9d">paste your key…</text>
+  <rect x="20" y="256" width="300" height="44" rx="0" fill="#2d2d30" stroke="#d9822b" stroke-width="2"/>
+  <text x="34" y="283" fill="#cccccc">Unsaved changes</text>
+  <rect x="190" y="264" width="62" height="28" rx="4" fill="#0e639c"/>
+  <text x="202" y="283" fill="#ffffff">Apply</text>
+  <rect x="258" y="264" width="52" height="28" rx="4" fill="#3c3c3c"/>
+  <text x="266" y="283" fill="#cccccc">Discard</text>
+  <g fill="#d9822b"><circle cx="150" cy="62" r="12"/><circle cx="222" cy="250" r="12"/></g>
+  <g fill="#fff" font-weight="700" text-anchor="middle"><text x="150" y="67">2</text><text x="222" y="255">4</text></g>
+  <circle cx="270" cy="162" r="12" fill="#d9822b"/><text x="270" y="167" fill="#fff" font-weight="700" text-anchor="middle">3</text>
+  <text x="350" y="60" fill="#cccccc" font-weight="600">1  Open ⚙ Settings first</text>
+  <text x="350" y="78" fill="#9d9d9d">(top bar of the main page).</text>
+  <text x="350" y="94" fill="#9d9d9d">← goes back to the files.</text>
+  <text x="350" y="110" fill="#cccccc" font-weight="600">2  Environment tab</text>
+  <text x="350" y="150" fill="#cccccc" font-weight="600">3  Paste the key</text>
+  <text x="350" y="168" fill="#9d9d9d">Stored in the OS keychain.</text>
+  <text x="350" y="186" fill="#9d9d9d">✕ removes a key.</text>
+  <text x="350" y="260" fill="#cccccc" font-weight="600">4  Apply</text>
+  <text x="350" y="278" fill="#9d9d9d">Restarts the container</text>
+  <text x="350" y="294" fill="#9d9d9d">with the new keys.</text>
+</svg>

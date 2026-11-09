@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="300" viewBox="0 0 560 300" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13">
+  <title>Spec2Test sidebar footer: container status and menu</title>
+  <rect width="560" height="300" rx="8" fill="#1e1e1e"/>
+  <rect x="20" y="20" width="270" height="260" rx="6" fill="#252526" stroke="#3c3c3c"/>
+  <text x="34" y="46" fill="#bbbbbb" font-weight="600">SPEC2TEST</text>
+  <rect x="34" y="60" width="242" height="26" rx="4" fill="#3c3c3c"/>
+  <text x="44" y="78" fill="#cccccc">shop-app</text>
+  <rect x="34" y="100" width="242" height="60" rx="4" fill="#2d2d30" stroke="#3c3c3c" stroke-dasharray="4 3"/>
+  <text x="44" y="135" fill="#9d9d9d">Files of the project…</text>
+  <line x1="20" y1="240" x2="290" y2="240" stroke="#3c3c3c"/>
+  <circle cx="40" cy="260" r="5" fill="#3fb950"/>
+  <text x="52" y="265" fill="#cccccc">Running</text>
+  <rect x="244" y="248" width="32" height="24" rx="4" fill="#3c3c3c" stroke="#d9822b" stroke-width="2"/>
+  <text x="254" y="266" fill="#cccccc" font-size="16">⋮</text>
+  <rect x="320" y="150" width="200" height="120" rx="6" fill="#252526" stroke="#3c3c3c"/>
+  <text x="336" y="176" fill="#cccccc">Restart</text>
+  <text x="336" y="200" fill="#cccccc">Stop</text>
+  <text x="336" y="224" fill="#cccccc">Update image</text>
+  <text x="336" y="248" fill="#cccccc">Show logs</text>
+  <path d="M276 260 L320 230" stroke="#d9822b" stroke-width="1.5" fill="none"/>
+  <circle cx="40" cy="260" r="13" fill="none" stroke="#d9822b" stroke-width="2"/>
+  <g fill="#d9822b"><circle cx="120" cy="260" r="12"/><circle cx="300" cy="262" r="12"/></g>
+  <g fill="#fff" font-weight="700" text-anchor="middle"><text x="120" y="265">1</text><text x="300" y="267">2</text></g>
+  <text x="320" y="60" fill="#cccccc" font-weight="600">1  Status</text>
+  <text x="320" y="82" fill="#9d9d9d">Docker missing · Docker off · Stopped ·</text>
+  <text x="320" y="100" fill="#9d9d9d">Starting… · Running · Update available</text>
+  <text x="320" y="124" fill="#cccccc" font-weight="600">2  Container menu</text>
+</svg>

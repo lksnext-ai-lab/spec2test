@@ -144,39 +144,53 @@
     "walkthroughs": [
       {
         "id": "spec2test.gettingStarted",
-        "title": "Get started with Spec2Test",
-        "description": "From an empty machine to your first processed spec.",
+        "title": "%walkthrough.title%",
+        "description": "%walkthrough.description%",
         "steps": [
           {
             "id": "docker",
-            "title": "Install and start Docker",
-            "description": "Spec2Test runs in Docker containers that the extension pulls and starts for you. The sidebar footer tells you what is missing and offers the next step.\n[Open Spec2Test](command:spec2test.focus)",
+            "title": "%walkthrough.docker.title%",
+            "description": "%walkthrough.docker.description%",
             "media": {
-              "markdown": "media/walkthrough/docker.md"
-            }
+              "markdown": "%walkthrough.docker.media%"
+            },
+            "completionEvents": [
+              "onCommand:spec2test.startService"
+            ]
           },
           {
             "id": "keys",
-            "title": "Add an API key",
-            "description": "Open the Environment section and paste the key of the LLM provider you want to use. Keys are kept in your OS keychain and handed to the container when it starts.",
+            "title": "%walkthrough.keys.title%",
+            "description": "%walkthrough.keys.description%",
             "media": {
-              "markdown": "media/walkthrough/keys.md"
+              "markdown": "%walkthrough.keys.media%"
             }
           },
           {
             "id": "project",
-            "title": "Create a project",
-            "description": "A project is a folder of inputs plus its own cache and pre-processed outputs.",
+            "title": "%walkthrough.project.title%",
+            "description": "%walkthrough.project.description%",
             "media": {
-              "markdown": "media/walkthrough/project.md"
+              "markdown": "%walkthrough.project.media%"
             }
           },
           {
-            "id": "process",
-            "title": "Drop files and process them",
-            "description": "Drop .mp4, .pdf, .md or .txt files into the drop zone, then press Process. Progress is live on every file card.",
+            "id": "agents",
+            "title": "%walkthrough.agents.title%",
+            "description": "%walkthrough.agents.description%",
             "media": {
-              "markdown": "media/walkthrough/process.md"
+              "markdown": "%walkthrough.agents.media%"
+            },
+            "completionEvents": [
+              "onCommand:spec2test.installAgents"
+            ]
+          },
+          {
+            "id": "gherkin",
+            "title": "%walkthrough.gherkin.title%",
+            "description": "%walkthrough.gherkin.description%",
+            "media": {
+              "markdown": "%walkthrough.gherkin.media%"
             }
           }
         ]
